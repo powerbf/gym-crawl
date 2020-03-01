@@ -1,5 +1,7 @@
 *.egg-info
 *.pyc
 .idea
+*.out
+*.err
 /logs
 *~
