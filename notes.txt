@@ -2,7 +2,7 @@ DCSS SCREEN
 
 Map section is in top left and is 17 rows by 33 columns
 Status section starts on row 1 column 38 (using 1-based indexes) and is 12(?) rows
-Messages section starts on row 18
+Messages section starts on row 18 and is 6 rows long
 
 TERMINAL/CURSES INFO
 
@@ -10,6 +10,6 @@ https://en.wikipedia.org/wiki/ANSI_escape_code
 http://ascii-table.com/ansi-escape-sequences-vt-100.php
 https://vt100.net/docs/vt102-ug/chapter5.html
 http://www.sweger.com/ansiplus/EscSeqScroll.html
-https://docs.python.org/2/library/curses.ascii.html
+https://docs.python.org/3/library/curses.ascii.html
 http://www.asciitable.com/
 
