@@ -78,6 +78,7 @@ class CrawlEnv(gym.Env):
 
         self.frame = TerminalCapture()
         self.frame_count = 0
+        self.done = True
 
     def __del__(self):
         self.close()
@@ -89,12 +90,15 @@ class CrawlEnv(gym.Env):
         self.process.stdin.flush()
         self._read_frame();
         ob = self.frame # TODO: process frame
-        reward = self._get_reward;
-        done = False # TODO:
-        return ob, reward, done, {}
+        reward = self._get_reward();
+        return ob, reward, self.done, {}
 
     def reset(self):
         self.close()
+
+        self.frame = TerminalCapture()
+        self.frame_count = 0
+        self.done = False
 
         crawl_bin_dir = self.crawl_path + '/bin'
         crawl_saves_dir = self.crawl_path + '/bin/saves'
@@ -115,9 +119,8 @@ class CrawlEnv(gym.Env):
 
         self._read_frame();
         ob = self.frame # TODO: process frame
-        reward = self._get_reward;
-        done = False # TODO:
-        return ob, reward, done, {}
+        reward = self._get_reward();
+        return ob, reward, self.done, {}
 
     def _render_to_file(self, mode='human'):
         if self.render_file is None:
@@ -168,4 +171,8 @@ class CrawlEnv(gym.Env):
         else:
             self.frame_count += 1
             self.frame.handle_output(data)
+            if 'You die' in data or 'You escape' in data:
+                # game is over
+                self.done = true
+
 
