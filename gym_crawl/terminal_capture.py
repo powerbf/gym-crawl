@@ -6,6 +6,8 @@ from curses import ascii
 import re
 import sys
 
+DEBUG = False
+
 ESC = chr(ascii.ESC)
 DEL = chr(ascii.DEL)
 
@@ -58,16 +60,27 @@ class TerminalCapture:
             string += '\n'
         return string
 
-    def render(self, row, col):
+    def render(self, row, col, show_border = True):
         """ print screen contents
             by default, prints at current cursor. or at row, col if both are specified (1-based, not 0-based)
         """
         if row is not None and col is not None:
             sys.stdout.write(ESC + '[' + str(row) + ';' + str(col) + 'H')
         sys.stdout.write(ESC +'[0m') # reset to defaults
+
+        if show_border:
+            sys.stdout.write('/')
+            for i in range(self.screen_cols):
+                sys.stdout.write('-')
+            sys.stdout.write('\\\n')
+
         last_fg_color = None
         last_bold = False
+
         for line in self.screen:
+            if show_border:
+                sys.stdout.write('|')
+
             for char in line:
 
                 # set foreground color
@@ -88,13 +101,24 @@ class TerminalCapture:
  
                 #sys.stdout.write(ESC + '[' + str(char['background_color']) + 'm')
                 sys.stdout.write(char['char'])
+
+            if show_border:
+                sys.stdout.write('|')
+
             sys.stdout.write('\n')
+
+        if show_border:
+            sys.stdout.write('\\')
+            for i in range(self.screen_cols):
+                sys.stdout.write('-')
+            sys.stdout.write('/\n')
+
         sys.stdout.flush()
 
     def handle_output(self, data):
         # update our internal representation of the screen
         # this is tricky because the raw data contains ASCII control sequences
-        print('\nProcessing data: ' + make_printable(data), file=sys.stderr)
+        if DEBUG: print('\nProcessing data: ' + make_printable(data), file=sys.stderr)
         self.data = data
         i = 0
         while i < len(data):
@@ -121,7 +145,7 @@ class TerminalCapture:
             elif data[i] == '\r':
                 self.col = 0
             elif data[i] >= ' ' and data[i] != DEL:
-                print('Placing character ' + data[i] + ' at {},{}\n'.format(self.row, self.col), file=sys.stderr)
+                if DEBUG: print('Placing character ' + data[i] + ' at {},{}\n'.format(self.row, self.col), file=sys.stderr)
                 self.screen[self.row][self.col]['char'] = data[i]
                 self.screen[self.row][self.col]['foreground_color'] = self.curr_foreground_color
                 self.screen[self.row][self.col]['background_color'] = self.curr_background_color
@@ -131,7 +155,7 @@ class TerminalCapture:
             i += 1
 
     def _handle_escape_sequence(self, esc_seq):
-        #print('Handling escape sequence: ' + make_printable(esc_seq), file=sys.stderr)
+        if DEBUG: print('Handling escape sequence: ' + make_printable(esc_seq), file=sys.stderr)
         esc_seq = esc_seq[1:] # discard ESC character
         if esc_seq == '':
             pass
@@ -185,7 +209,7 @@ class TerminalCapture:
                 else:
                     self.row = 0
                     self.col = 0
-                #print('Moved cursor to {},{}\n'.format(self.row, self.col), file=sys.stderr)
+                if DEBUG: print('Moved cursor to {},{}\n'.format(self.row, self.col), file=sys.stderr)
             elif esc_seq == CLEAR_SCREEN:
                 # clear screen
                 self._clear_screen()
@@ -223,7 +247,7 @@ class TerminalCapture:
             elif esc_seq[-1] == 'X':
                 # CSI Ps X  Erase Ps Character(s) (default = 1) (ECH).
                 num = self._extract_number(esc_seq, 1)
-                print('Erasing {} chars at {},{}'.format(num, self.row, self.col), file=sys.stderr)
+                if DEBUG: print('Erasing {} chars at {},{}'.format(num, self.row, self.col), file=sys.stderr)
                 line = self.screen[self.row]
                 for dest in range(self.col, min(self.col+num, self.screen_cols)):
                     line[dest] = self._new_char()
@@ -233,21 +257,19 @@ class TerminalCapture:
                 self.row = self._extract_number(esc_seq, 1) - 1
             elif esc_seq[-1] == 'm':
                 # font effects
-                print('Handling escape sequence: ' + make_printable(esc_seq), file=sys.stderr)
                 nums = self._extract_numbers(esc_seq, 0)
-                #print('Extracted numbers: ' + str(nums), file=sys.stderr)
                 for num in nums:
                     if num == 0:
                         # reset everything
                         self.curr_foreground_color = DEFAULT_FOREGROUND_COLOR
                         self.curr_background_color = DEFAULT_BACKGROUND_COLOR
-                        print('Set foreground color to: {}'.format(self.curr_foreground_color), file=sys.stderr)
+                        if DEBUG: print('Set foreground color to: {}'.format(self.curr_foreground_color), file=sys.stderr)
                         self.bold = False
                     elif num == 1:
                         self.bold = True
                     elif num == DEFAULT_FOREGROUND_COLOR or (num >= 30 and num <= 37) or (num >= 90 and num <=97):
                         self.curr_foreground_color = num 
-                        print('Set foreground color to: {}'.format(self.curr_foreground_color), file=sys.stderr)
+                        if DEBUG: print('Set foreground color to: {}'.format(self.curr_foreground_color), file=sys.stderr)
                     elif num == DEFAULT_BACKGROUND_COLOR or (num >= 40 and num <= 47) or (num >= 100 and num <=107):
                         self.curr_background_color = num 
             elif esc_seq[-1] == 'r':
@@ -267,7 +289,7 @@ class TerminalCapture:
                 # Xterm window settings
                 pass
             else:
-                print('Unknown escape sequence: ESC' + esc_seq, file=sys.stderr)
+                if DEBUG: print('Unknown escape sequence: ESC' + esc_seq, file=sys.stderr)
         elif esc_seq == '7':
             # save cursor position
             self.saved_row = self.row
@@ -297,7 +319,7 @@ class TerminalCapture:
             # Exit alternate keypad mode (numlock on?)
             pass
         else:
-            print('Unknown escape sequence: ESC' + esc_seq, file=sys.stderr)
+            if DEBUG: print('Unknown escape sequence: ESC' + esc_seq, file=sys.stderr)
 
     def _extract_number(self, string, default):
         m = re.search(r'(\d+)', string)
