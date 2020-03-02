@@ -14,8 +14,28 @@ DEL = chr(ascii.DEL)
 CLEAR_SCREEN = '[2J'
 ESC_CLEAR_SCREEN = ESC + CLEAR_SCREEN
 
+ESC_FONT_NORMAL = ESC + '[0m'
+
 DEFAULT_FOREGROUND_COLOR = 39
-DEFAULT_BACKGROUND_COLOR = 49
+
+# background colors
+BG_COLOR_BLACK = 40
+BG_COLOR_RED = 41
+BG_COLOR_GREEN = 42
+BG_COLOR_YELLOW = 43
+BG_COLOR_BLUE = 44
+BG_COLOR_MAGENTA = 45
+BG_COLOR_CYAN = 46
+BG_COLOR_WHITE = 47
+BG_COLOR_DEFAULT = 49
+BG_COLOR_BRIGHT_BLACK = 100
+BG_COLOR_BRIGHT_RED = 101
+BG_COLOR_BRIGHT_GREEN = 102
+BG_COLOR_BRIGHT_YELLOW = 103
+BG_COLOR_BRIGHT_BLUE = 104
+BG_COLOR_BRIGHT_MAGENTA = 104
+BG_COLOR_BRIGHT_CYAN = 106
+BG_COLOR_BRIGHT_WHITE = 107
 
 def make_printable(string):
     """ Replace non-printable characters with codes
@@ -46,7 +66,7 @@ class TerminalCapture:
         self.saved_row = None
         self.saved_col = None
         self.curr_foreground_color = DEFAULT_FOREGROUND_COLOR
-        self.curr_background_color = DEFAULT_BACKGROUND_COLOR
+        self.curr_background_color = BG_COLOR_BLACK
         self.bold = False
         self._init_screen()
 
@@ -66,7 +86,7 @@ class TerminalCapture:
         """
         if row is not None and col is not None:
             sys.stdout.write(ESC + '[' + str(row) + ';' + str(col) + 'H')
-        sys.stdout.write(ESC +'[0m') # reset to defaults
+        sys.stdout.write(ESC_FONT_NORMAL) # reset to defaults
 
         if show_border:
             sys.stdout.write('/')
@@ -75,6 +95,7 @@ class TerminalCapture:
             sys.stdout.write('\\\n')
 
         last_fg_color = None
+        last_bg_color = None
         last_bold = False
 
         for line in self.screen:
@@ -89,20 +110,30 @@ class TerminalCapture:
                     sys.stdout.write(ESC + '[' + str(fg_color) + 'm')
                     last_fg_color = fg_color
 
+                # set background color
+                bg_color = char['background_color']
+                if bg_color != last_bg_color:
+                    sys.stdout.write(ESC + '[' + str(bg_color) + 'm')
+                    last_bg_color = bg_color
+
                 # set bold
                 bold = char['bold']
                 if bold != last_bold:
                     if bold:
                         sys.stdout.write(ESC + '[1m')
                     else:
-                       sys.stdout.write(ESC + '[0m')
+                       sys.stdout.write(ESC_FONT_NORMAL)
                        last_fg_color = None
+                       last_bg_color = None
                     last_bold = bold
  
-                #sys.stdout.write(ESC + '[' + str(char['background_color']) + 'm')
                 sys.stdout.write(char['char'])
 
             if show_border:
+                sys.stdout.write(ESC_FONT_NORMAL)
+                last_fg_color = None
+                last_bg_color = None
+                last_bold = False
                 sys.stdout.write('|')
 
             sys.stdout.write('\n')
@@ -262,7 +293,7 @@ class TerminalCapture:
                     if num == 0:
                         # reset everything
                         self.curr_foreground_color = DEFAULT_FOREGROUND_COLOR
-                        self.curr_background_color = DEFAULT_BACKGROUND_COLOR
+                        self.curr_background_color = BG_COLOR_BLACK
                         if DEBUG: print('Set foreground color to: {}'.format(self.curr_foreground_color), file=sys.stderr)
                         self.bold = False
                     elif num == 1:
@@ -270,7 +301,11 @@ class TerminalCapture:
                     elif num == DEFAULT_FOREGROUND_COLOR or (num >= 30 and num <= 37) or (num >= 90 and num <=97):
                         self.curr_foreground_color = num 
                         if DEBUG: print('Set foreground color to: {}'.format(self.curr_foreground_color), file=sys.stderr)
-                    elif num == DEFAULT_BACKGROUND_COLOR or (num >= 40 and num <= 47) or (num >= 100 and num <=107):
+                    elif num == BG_COLOR_DEFAULT:
+                        self.curr_background_color = BG_COLOR_BLACK
+                    elif num >= BG_COLOR_BLACK and num <= BG_COLOR_WHITE:
+                        self.curr_background_color = num 
+                    elif num >= BG_COLOR_BRIGHT_BLACK and num <= BG_COLOR_BRIGHT_WHITE:
                         self.curr_background_color = num 
             elif esc_seq[-1] == 'r':
                 # TODO: set scroll region
@@ -355,7 +390,7 @@ class TerminalCapture:
         char = {}
         char['char'] = ' '
         char['foreground_color'] = DEFAULT_FOREGROUND_COLOR
-        char['background_color'] = DEFAULT_BACKGROUND_COLOR
+        char['background_color'] = BG_COLOR_BLACK
         char['bold'] = False
         return char
 
