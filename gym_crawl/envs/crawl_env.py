@@ -4,6 +4,7 @@ from gym.utils import seeding
 from subprocess import Popen, PIPE
 from threading  import Thread
 from queue import Queue, Empty
+import os
 import sys
 
 from gym_crawl.terminal_capture import TerminalCapture
@@ -31,6 +32,8 @@ class CrawlEnv(gym.Env):
     NUMPAD_7 = '\x1bOw'
     NUMPAD_8 = '\x1bOx'
     NUMPAD_9 = '\x1bOy' 
+
+    CTRL_Q = '\x11'
 
     # commands
     WAIT = '.'    
@@ -70,7 +73,8 @@ class CrawlEnv(gym.Env):
         self.process = None
         self.queue = None
         self.render_file = None
-        self.crawl_path = '/home/brian/crawl/0.24-ascii/bin'
+        self.crawl_path = '/home/brian/crawl/0.24-ascii'
+        self.character_name = 'Lerny'
 
         self.frame = TerminalCapture()
         self.frame_count = 0
@@ -90,20 +94,25 @@ class CrawlEnv(gym.Env):
         return ob, reward, done, {}
 
     def reset(self):
-        print('CrawlEnv:reset')
-        if self.process is not None:
-            self.process.kill()
+        self.close()
 
-        cmd = [self.crawl_path + '/crawl', '-name', 'Lerny', '-species', 'Minotaur', '-background', 'Berserker']
-        self.process = Popen(cmd, cwd=self.crawl_path, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True)
+        crawl_bin_dir = self.crawl_path + '/bin'
+        crawl_saves_dir = self.crawl_path + '/bin/saves'
+        crawl_save_file = crawl_saves_dir + '/' + self.character_name + '.cs'
+
+        if os.path.exists(crawl_save_file):
+            os.remove(crawl_save_file)
+
+        cmd = [crawl_bin_dir + '/crawl', '-name', self.character_name, '-species', 'Minotaur', '-background', 'Berserker']
+        self.process = Popen(cmd, cwd=crawl_bin_dir, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True)
 
         self.queue = Queue()
         thread = Thread(target=enqueue_output, args=(self.process.stdout, self.queue))
         thread.daemon = True # thread dies with the program
         thread.start()
 
-        self.process.stdin.write('c') # choose axe
-        self.process.stdin.flush()
+        self._send_chars('c') # choose axe
+
         self._read_frame();
         ob = self.frame # TODO: process frame
         reward = self._get_reward;
@@ -127,17 +136,24 @@ class CrawlEnv(gym.Env):
         self._render_to_screen(mode)
 
     def close(self):
-        print('CrawlEnv:close')
-        if self.process is not None:
-            self.render()
-            self.process.kill()
-            self.process = None
+        if self.process is not None and self.process.poll() is None:
+            try:
+                self._send_chars(CTRL_Q + 'yesyes') # ask to quit
+                self.process.wait(timeout=0.5)
+            except:
+                self.process.kill()
         if self.render_file is not None:
             self.render_file.close()
   
     def _action_to_keys(self, action):
         keys = self.ACTION_LOOKUP[action]
         return keys
+
+    def _send_chars(self, chars):
+        """ Send characters to the crawl process
+        """
+        self.process.stdin.write(chars)
+        self.process.stdin.flush()        
 
     def _get_reward(self):
         return 1
