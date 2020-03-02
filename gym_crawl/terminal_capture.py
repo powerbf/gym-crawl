@@ -216,17 +216,17 @@ class TerminalCapture:
                 if self.col < 0:
                     self.col = 0
             if esc_seq[-1] == 'E':
-                # cursor up and to start of line
-                self.col = 0
-                self.row -= self._extract_number(esc_seq, 1)
-                if self.row < 0:
-                    self.row = 0
-            elif esc_seq[-1] == 'F':
-                # cursor down and to start of line
+                # CNL (Cursor Next Line): go to start of nth line down
                 self.col = 0
                 self.row += self._extract_number(esc_seq, 1)
                 if self.row > self.screen_rows - 1:
                     self.row = self.screen_rows - 1
+            elif esc_seq[-1] == 'F':
+                # CPL (Cursor Previous Line): go to start of nth line up
+                self.col = 0
+                self.row -= self._extract_number(esc_seq, 1)
+                if self.row < 0:
+                    self.row = 0
             elif esc_seq[-1] == 'G':
                 # move cursor to specified column
                 # convert from 1-based to 0-based
