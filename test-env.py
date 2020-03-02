@@ -1,8 +1,12 @@
+import sys
 import gym
 import gym_crawl
+from gym_crawl.terminal_capture import ESC_CLEAR_SCREEN
+
+sys.stdout.write(ESC_CLEAR_SCREEN)
 
 env = gym.make("crawl-v0")
-env.reset()
+
 
 # Each of these is its own game.
 for episode in range(5):

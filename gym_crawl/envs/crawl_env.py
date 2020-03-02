@@ -73,7 +73,6 @@ class CrawlEnv(gym.Env):
     }
 
     def __init__(self):
-        print('__init__')
         self.action_space = spaces.Discrete(11) 
         self.process = None
         self.queue = None
@@ -145,7 +144,7 @@ class CrawlEnv(gym.Env):
     def _render_to_screen(self, mode='human'):
         if self.frame is not None:
             self.frame.render(1, 1)
-            print('---------------END FRAME {} ------------------'.format(self.frame_count))
+            print('FRAME_COUNT: {}'.format(self.frame_count))
 
     def render(self, mode='human'):
         self._render_to_screen(mode)

@@ -13,6 +13,7 @@ DEL = chr(ascii.DEL)
 
 CLEAR_SCREEN = '[2J'
 ESC_CLEAR_SCREEN = ESC + CLEAR_SCREEN
+ESC_GOTO_NEXT_LINE = ESC + '[E'
 
 ESC_FONT_NORMAL = ESC + '[0m'
 
@@ -92,7 +93,7 @@ class TerminalCapture:
             sys.stdout.write('/')
             for i in range(self.screen_cols):
                 sys.stdout.write('-')
-            sys.stdout.write('\\\n')
+            sys.stdout.write('\\' + ESC_GOTO_NEXT_LINE)
 
         last_fg_color = None
         last_bg_color = None
@@ -136,13 +137,13 @@ class TerminalCapture:
                 last_bold = False
                 sys.stdout.write('|')
 
-            sys.stdout.write('\n')
+            sys.stdout.write(ESC_GOTO_NEXT_LINE)
 
         if show_border:
             sys.stdout.write('\\')
             for i in range(self.screen_cols):
                 sys.stdout.write('-')
-            sys.stdout.write('/\n')
+            sys.stdout.write('/' + ESC_GOTO_NEXT_LINE)
 
         sys.stdout.flush()
 
