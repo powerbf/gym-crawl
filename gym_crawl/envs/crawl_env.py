@@ -55,6 +55,9 @@ class CrawlEnv(gym.Env):
     GO_NORTHWEST = NUMPAD_7
     GO_NORTHEAST = NUMPAD_9
 
+    GO_UPSTAIRS = '<'
+    GO_DOWNSTAIRS = '>'
+
     ACTION_LOOKUP = {
         0 : WAIT,
         1 : GO_NORTHWEST,
@@ -65,11 +68,13 @@ class CrawlEnv(gym.Env):
         6 : GO_SOUTHWEST,
         7 : GO_SOUTH,
         8 : GO_SOUTHEAST,
+        9 : GO_UPSTAIRS,
+        10: GO_DOWNSTAIRS
     }
 
     def __init__(self):
         print('__init__')
-        self.action_space = spaces.Discrete(9) 
+        self.action_space = spaces.Discrete(11) 
         self.process = None
         self.queue = None
         self.render_file = None
@@ -79,6 +84,7 @@ class CrawlEnv(gym.Env):
         self.frame = TerminalCapture()
         self.frame_count = 0
         self.done = True
+        self.won = False
 
     def __del__(self):
         self.close()
@@ -99,6 +105,7 @@ class CrawlEnv(gym.Env):
         self.frame = TerminalCapture()
         self.frame_count = 0
         self.done = False
+        self.won = False
 
         crawl_bin_dir = self.crawl_path + '/bin'
         crawl_saves_dir = self.crawl_path + '/bin/saves'
@@ -159,7 +166,13 @@ class CrawlEnv(gym.Env):
         self.process.stdin.flush()        
 
     def _get_reward(self):
-        return 1
+        if self.done:
+            if self.won:
+                return 1e6
+            else
+                return -1e6
+        else
+            return 1
 
     def _read_frame(self):
         # read without blocking
@@ -171,8 +184,8 @@ class CrawlEnv(gym.Env):
         else:
             self.frame_count += 1
             self.frame.handle_output(data)
-            if 'You die' in data or 'You escape' in data:
+            if 'You die' in data or 'You have escaped' in data:
                 # game is over
                 self.done = true
-
+                self.won = ('with the orb' in data)
 
