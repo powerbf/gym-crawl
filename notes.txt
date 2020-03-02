@@ -12,4 +12,6 @@ https://vt100.net/docs/vt102-ug/chapter5.html
 http://www.sweger.com/ansiplus/EscSeqScroll.html
 https://docs.python.org/3/library/curses.ascii.html
 http://www.asciitable.com/
+https://www.xfree86.org/current/ctlseqs.html
+https://gist.github.com/justinmk/a5102f9a0c1810437885a04a07ef0a91
 

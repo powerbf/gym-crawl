@@ -12,6 +12,8 @@ DEL = chr(ascii.DEL)
 CLEAR_SCREEN = '[2J'
 ESC_CLEAR_SCREEN = ESC + CLEAR_SCREEN
 
+DEFAULT_FOREGROUND_COLOR = 39
+DEFAULT_BACKGROUND_COLOR = 49
 
 def make_printable(string):
     """ Replace non-printable characters with codes
@@ -36,18 +38,23 @@ class TerminalCapture:
         self.screen_cols = cols
         self.screen_rows = rows
         self.data = None
-        self.frame = None
+        self.screen = None
         self.row = 0
         self.col = 0
         self.saved_row = None
         self.saved_col = None
-        self._init_frame()
+        self.curr_foreground_color = DEFAULT_FOREGROUND_COLOR
+        self.curr_background_color = DEFAULT_BACKGROUND_COLOR
+        self.bold = False
+        self._init_screen()
+
 
     def to_string(self):
         # return screen contents as string
         string = ''
-        for row in self.frame:
-            string += ''.join(row)
+        for line in self.screen:
+            for char in line:
+                string += char['char']
             string += '\n'
         return string
 
@@ -57,7 +64,31 @@ class TerminalCapture:
         """
         if row is not None and col is not None:
             sys.stdout.write(ESC + '[' + str(row) + ';' + str(col) + 'H')
-        sys.stdout.write(self.to_string())
+        sys.stdout.write(ESC +'[0m') # reset to defaults
+        last_fg_color = None
+        last_bold = False
+        for line in self.screen:
+            for char in line:
+
+                # set foreground color
+                fg_color = char['foreground_color']
+                if fg_color != last_fg_color:
+                    sys.stdout.write(ESC + '[' + str(fg_color) + 'm')
+                    last_fg_color = fg_color
+
+                # set bold
+                bold = char['bold']
+                if bold != last_bold:
+                    if bold:
+                        sys.stdout.write(ESC + '[1m')
+                    else:
+                       sys.stdout.write(ESC + '[0m')
+                       last_fg_color = None
+                    last_bold = bold
+ 
+                #sys.stdout.write(ESC + '[' + str(char['background_color']) + 'm')
+                sys.stdout.write(char['char'])
+            sys.stdout.write('\n')
         sys.stdout.flush()
 
     def handle_output(self, data):
@@ -90,8 +121,11 @@ class TerminalCapture:
             elif data[i] == '\r':
                 self.col = 0
             elif data[i] >= ' ' and data[i] != DEL:
-                #print('Setting character at {},{}\n'.format(self.row, self.col), file=sys.stderr)
-                self.frame[self.row][self.col] = data[i]
+                print('Placing character ' + data[i] + ' at {},{}\n'.format(self.row, self.col), file=sys.stderr)
+                self.screen[self.row][self.col]['char'] = data[i]
+                self.screen[self.row][self.col]['foreground_color'] = self.curr_foreground_color
+                self.screen[self.row][self.col]['background_color'] = self.curr_background_color
+                self.screen[self.row][self.col]['bold'] = self.bold
                 self.col += 1
 
             i += 1
@@ -148,60 +182,74 @@ class TerminalCapture:
                     # coords are 1-based, so we have to subtract one to convert to 0-based
                     self.row = 0 if m.group(1) == '' else int(m.group(1))-1
                     self.col = 0 if m.group(2) == '' else int(m.group(2))-1
-                    #print('Moved cursor to {},{}\n'.format(self.row, self.col), file=sys.stderr)
                 else:
                     self.row = 0
                     self.col = 0
+                #print('Moved cursor to {},{}\n'.format(self.row, self.col), file=sys.stderr)
             elif esc_seq == CLEAR_SCREEN:
                 # clear screen
-                self._clear_frame()
+                self._clear_screen()
             elif esc_seq == '[0K' or esc_seq == '[K':
                 # clear from cursor to end of line
                 for j in range(self.col, self.screen_cols):
-                    self.frame[self.row][j] = ' '
+                    self.screen[self.row][j] = self._new_char()
             elif esc_seq == '[1K':
                 # clear from cursor to beginning of line
                 for j in range(0, self.col):
-                    self.frame[self.row][j] = ' '
+                    self.screen[self.row][j] = self._new_char()
             elif esc_seq == '[2K':
                 # clear whole line
                 for j in range(self.screen_cols):
-                    self.frame[self.row][j] = ' '
+                    self.screen[self.row][j] = self._new_char()
             elif esc_seq[-1] =='M':
                 # delete lines
                 num = self._extract_number(esc_seq, 1)
                 for dest in range(self.row, self.screen_rows):
                     src = dest + num
                     if src < self.screen_rows:
-                        self.frame[dest] = self.frame[src]
+                        self.screen[dest] = self.screen[src]
                     else:
-                        self.frame[dest] = [' '] * self.screen_cols
+                        self.screen[dest] = self._new_line()
             elif esc_seq[-1] == 'P':
                 # CSI Ps P  Delete Ps Character(s) (default = 1) (DCH).
                 num = self._extract_number(esc_seq, 1)
-                line = self.frame[self.row]
+                line = self.screen[self.row]
                 for dest in range(self.col, self.screen_cols):
                     src = dest + num
                     if src < self.screen_cols:
                         line[dest] = line[src]
                     else:
-                        line[dest] = ' '
+                        line[dest] = self._new_char()
             elif esc_seq[-1] == 'X':
                 # CSI Ps X  Erase Ps Character(s) (default = 1) (ECH).
                 num = self._extract_number(esc_seq, 1)
-                line = self.frame[self.row]
-                for dest in range(self.col-num, self.screen_cols):
-                    src = dest + num
-                    if src < self.screen_cols:
-                        line[dest] = line[src]
-                    else:
-                        line[dest] = ' '
+                print('Erasing {} chars at {},{}'.format(num, self.row, self.col), file=sys.stderr)
+                line = self.screen[self.row]
+                for dest in range(self.col, min(self.col+num, self.screen_cols)):
+                    line[dest] = self._new_char()
+                self.col = min(self.col+num, self.screen_cols-1)
             elif esc_seq[-1] == 'd':
                 # set vertical position
                 self.row = self._extract_number(esc_seq, 1) - 1
             elif esc_seq[-1] == 'm':
-                # TODO: font effects
-                pass
+                # font effects
+                print('Handling escape sequence: ' + make_printable(esc_seq), file=sys.stderr)
+                nums = self._extract_numbers(esc_seq, 0)
+                #print('Extracted numbers: ' + str(nums), file=sys.stderr)
+                for num in nums:
+                    if num == 0:
+                        # reset everything
+                        self.curr_foreground_color = DEFAULT_FOREGROUND_COLOR
+                        self.curr_background_color = DEFAULT_BACKGROUND_COLOR
+                        print('Set foreground color to: {}'.format(self.curr_foreground_color), file=sys.stderr)
+                        self.bold = False
+                    elif num == 1:
+                        self.bold = True
+                    elif num == DEFAULT_FOREGROUND_COLOR or (num >= 30 and num <= 37) or (num >= 90 and num <=97):
+                        self.curr_foreground_color = num 
+                        print('Set foreground color to: {}'.format(self.curr_foreground_color), file=sys.stderr)
+                    elif num == DEFAULT_BACKGROUND_COLOR or (num >= 40 and num <= 47) or (num >= 100 and num <=107):
+                        self.curr_background_color = num 
             elif esc_seq[-1] == 'r':
                 # TODO: set scroll region
                 pass
@@ -258,19 +306,40 @@ class TerminalCapture:
         else:
             return default
 
-    def _init_frame(self):
-        self.frame = []
+    def _extract_numbers(self, string, default=None):
+        strings = re.findall(r'(\d+)', string)
+        results = []
+        for string in strings:
+            results.append(int(string))
+        if len(results) == 0 and default != None:
+            results.append(default)
+        return results
+
+    def _init_screen(self):
+        self.screen = []
         for row in range(self.screen_rows):
-            self.frame.append([' '] * self.screen_cols)
+            self.screen.append(self._new_line())
         self.row = 0
         self.col = 0
-        self.frame_count = 0
 
-    def _clear_frame(self):
+    def _clear_screen(self):
         for row in range(self.screen_rows):
             for col in range(self.screen_cols):
-                self.frame[row][col] = ' '
+                self.screen[row][col] = self._new_char()
         self.row = 0
         self.col = 0
 
+    def _new_char(self):
+        char = {}
+        char['char'] = ' '
+        char['foreground_color'] = DEFAULT_FOREGROUND_COLOR
+        char['background_color'] = DEFAULT_BACKGROUND_COLOR
+        char['bold'] = False
+        return char
+
+    def _new_line(self):
+        line = []
+        for col in range(self.screen_cols):
+            line.append(self._new_char())
+        return line
 
