@@ -6,7 +6,7 @@ from threading  import Thread
 from queue import Queue, Empty
 import sys
 
-from .terminal_capture import TerminalCapture
+from gym_crawl.terminal_capture import TerminalCapture
 
 def enqueue_output(out, queue):
     for line in iter(out.readline, b''):
@@ -120,10 +120,7 @@ class CrawlEnv(gym.Env):
 
     def _render_to_screen(self, mode='human'):
         if self.frame is not None:
-            #sys.stdout.write('\x1b[2J\x1b[H') # clear screen
-            sys.stdout.write('\x1b[H')
-            sys.stdout.write(self.frame.to_string())
-            sys.stdout.flush()
+            self.frame.render(1, 1)
             print('---------------END FRAME {} ------------------'.format(self.frame_count))
 
     def render(self, mode='human'):
