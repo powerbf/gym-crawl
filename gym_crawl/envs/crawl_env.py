@@ -81,6 +81,7 @@ class CrawlEnv(gym.Env):
         self.crawl_path = '/home/brian/crawl/0.24-ascii'
         self.character_name = 'Lerny'
 
+        self.data_in = ''
         self.frame = TerminalCapture()
         self.frame_count = 0
         self.done = True
@@ -125,6 +126,10 @@ class CrawlEnv(gym.Env):
         self._send_chars('c') # choose axe
 
         self._read_frame();
+        while '--more--' in self.data_in:
+            self._send_chars(' ')
+            self._read_frame();
+            
         ob = self.frame # TODO: process frame
         reward = self._get_reward();
         return ob, reward, self.done, {}
@@ -169,23 +174,23 @@ class CrawlEnv(gym.Env):
         if self.done:
             if self.won:
                 return 1e6
-            else
+            else:
                 return -1e6
-        else
+        else:
             return 1
 
     def _read_frame(self):
         # read without blocking
         try:
-            data = self.queue.get_nowait() 
-            #data = self.queue.get(timeout=.5)
+            self.data_in = self.queue.get_nowait() 
+            #data_in = self.queue.get(timeout=.5)
         except Empty:
             return
         else:
             self.frame_count += 1
-            self.frame.handle_output(data)
-            if 'You die' in data or 'You have escaped' in data:
+            self.frame.handle_output(self.data_in)
+            if 'You die' in self.data_in or 'You have escaped' in self.data_in:
                 # game is over
                 self.done = true
-                self.won = ('with the orb' in data)
+                self.won = ('with the orb' in self.data_in)
 
