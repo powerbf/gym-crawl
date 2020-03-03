@@ -164,7 +164,7 @@ class CrawlEnv(gym.Env):
         """ Send characters to the crawl process
         """
         self.process.stdin.write(chars)
-        self.process.stdin.flush()        
+        self.process.stdin.flush()
 
     def _read_frame(self):
         self.reward = 0
@@ -173,7 +173,7 @@ class CrawlEnv(gym.Env):
         done = False
         while not done:
             try:
-                #data = self.queue.get_nowait() 
+                #data = self.queue.get_nowait()
                 data = self.queue.get(timeout=.0001)
             except Empty:
                 if not prompt:
