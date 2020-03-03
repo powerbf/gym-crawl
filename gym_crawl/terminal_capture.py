@@ -153,36 +153,44 @@ class TerminalCapture:
         if DEBUG: print('\nProcessing data: ' + make_printable(data), file=sys.stderr)
         self.data = data
         i = 0
+        string = ''
         while i < len(data):
-            if data[i] == ESC:
-                if i == len(data) - 1:
-                    # ESC is the last char
-                    break
-
-                # extract the escape sequence
-                j = i + 1
-                if data[j] == '[' or data[j] == '(':
-                    j += 1
-                    while j < len(data) - 1 and (data[j] < '\x40' or data[j] > '\x7e'):
-                        j += 1
-                esc_seq = data[i:j+1]
-                i = j
-
-                # now handle the escape sequence
-                self._handle_escape_sequence(esc_seq)
- 
-            elif data[i] == '\n':
-                self.row += 1
-                self.col = 0
-            elif data[i] == '\r':
-                self.col = 0
-            elif data[i] >= ' ' and data[i] != DEL:
-                if DEBUG: print('Placing character ' + data[i] + ' at {},{}\n'.format(self.row, self.col), file=sys.stderr)
+            if data[i] >= ' ' and data[i] != DEL:
+                if DEBUG:
+                    #print('Placing character ' + data[i] + ' at {},{}\n'.format(self.row, self.col), file=sys.stderr)
+                    string += data[i]
                 self.screen[self.row][self.col]['char'] = data[i]
                 self.screen[self.row][self.col]['foreground_color'] = self.curr_foreground_color
                 self.screen[self.row][self.col]['background_color'] = self.curr_background_color
                 self.screen[self.row][self.col]['bold'] = self.bold
                 self.col += 1
+            else:
+                if DEBUG and len(string) > 0:
+                    print('Placed string at {:d},{:d}: {}'.format(self.row, self.col - len(string), string), file=sys.stderr)
+                    string = ''
+            
+                if data[i] == ESC:
+                    if i == len(data) - 1:
+                        # ESC is the last char
+                        break
+
+                    # extract the escape sequence
+                    j = i + 1
+                    if data[j] == '[' or data[j] == '(':
+                        j += 1
+                        while j < len(data) - 1 and (data[j] < '\x40' or data[j] > '\x7e'):
+                            j += 1
+                    esc_seq = data[i:j+1]
+                    i = j
+
+                    # now handle the escape sequence
+                    self._handle_escape_sequence(esc_seq)
+     
+                elif data[i] == '\n':
+                    self.row += 1
+                    self.col = 0
+                elif data[i] == '\r':
+                    self.col = 0
 
             i += 1
 
@@ -241,7 +249,7 @@ class TerminalCapture:
                 else:
                     self.row = 0
                     self.col = 0
-                if DEBUG: print('Moved cursor to {},{}\n'.format(self.row, self.col), file=sys.stderr)
+                if DEBUG: print('Moved cursor to {},{}'.format(self.row, self.col), file=sys.stderr)
             elif esc_seq == CLEAR_SCREEN:
                 # clear screen
                 self._clear_screen()
