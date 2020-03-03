@@ -40,23 +40,23 @@ class CrawlEnv(gym.Env):
 
     # commands
     WAIT = '.'    
-    #GO_NORTH = 'k'
-    #GO_SOUTH = 'j'
-    #GO_EAST = 'h'
-    #GO_WEST = 'l'
-    #GO_NORTHWEST = 'y'
-    #GO_NORTHEAST = 'u'
-    #GO_SOUTHWEST = 'b'
-    #GO_SOUTHEAST = 'n'
+    GO_NORTH = 'k'
+    GO_SOUTH = 'j'
+    GO_EAST = 'h'
+    GO_WEST = 'l'
+    GO_NORTHWEST = 'y'
+    GO_NORTHEAST = 'u'
+    GO_SOUTHWEST = 'b'
+    GO_SOUTHEAST = 'n'
 
-    GO_NORTH = NUMPAD_8
-    GO_SOUTH = NUMPAD_2
-    GO_EAST = NUMPAD_6
-    GO_WEST = NUMPAD_4
-    GO_SOUTHWEST = NUMPAD_1
-    GO_SOUTHEAST = NUMPAD_3
-    GO_NORTHWEST = NUMPAD_7
-    GO_NORTHEAST = NUMPAD_9
+    #GO_NORTH = NUMPAD_8
+    #GO_SOUTH = NUMPAD_2
+    #GO_EAST = NUMPAD_6
+    #GO_WEST = NUMPAD_4
+    #GO_SOUTHWEST = NUMPAD_1
+    #GO_SOUTHEAST = NUMPAD_3
+    #GO_NORTHWEST = NUMPAD_7
+    #GO_NORTHEAST = NUMPAD_9
 
     GO_UPSTAIRS = '<'
     GO_DOWNSTAIRS = '>'
