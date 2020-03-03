@@ -5,6 +5,7 @@ from subprocess import Popen, PIPE
 from threading  import Thread
 from queue import Queue, Empty
 import os
+import re
 import sys
 
 from gym_crawl.terminal_capture import TerminalCapture
@@ -80,32 +81,22 @@ class CrawlEnv(gym.Env):
         self.crawl_path = '/home/brian/crawl/0.24-ascii'
         self.character_name = 'Lerny'
 
-        self.data_in = ''
         self.frame = TerminalCapture()
         self.frame_count = 0
-        self.done = True
-        self.won = False
+        
+        self._init_game_state()
+        self.reward = 0
 
     def __del__(self):
         self.close()
-
-    def step(self, action):
-        keys = self._action_to_keys(action)
-        #print('Sending: ' + re.sub(r'\x1b', 'ESC', keys), file=sys.stderr)
-        self.process.stdin.write(keys)
-        self.process.stdin.flush()
-        self._read_frame();
-        ob = self.frame # TODO: process frame
-        reward = self._get_reward();
-        return ob, reward, self.done, {}
 
     def reset(self):
         self.close()
 
         self.frame = TerminalCapture()
         self.frame_count = 0
-        self.done = False
-        self.won = False
+        self._init_game_state()
+
 
         crawl_bin_dir = self.crawl_path + '/bin'
         crawl_saves_dir = self.crawl_path + '/bin/saves'
@@ -124,14 +115,20 @@ class CrawlEnv(gym.Env):
 
         self._send_chars('c') # choose axe
 
+        self._read_frame();            
+
+        return self.frame, self.reward, self.game_state['finished'], self.game_state
+
+    def step(self, action):
+        # perform action
+        keys = self._action_to_keys(action)
+        #print('Sending: ' + re.sub(r'\x1b', 'ESC', keys), file=sys.stderr)
+        self.process.stdin.write(keys)
+        self.process.stdin.flush()
+
         self._read_frame();
-        while '--more--' in self.data_in:
-            self._send_chars(' ')
-            self._read_frame();
-            
-        ob = self.frame # TODO: process frame
-        reward = self._get_reward();
-        return ob, reward, self.done, {}
+
+        return self.frame, self.reward, self.game_state['finished'], self.game_state
 
     def _render_to_file(self, mode='human'):
         if self.render_file is None:
@@ -144,7 +141,7 @@ class CrawlEnv(gym.Env):
     def _render_to_screen(self, mode='human'):
         if self.frame is not None:
             self.frame.render(1, 1)
-            print('FRAME_COUNT: {}'.format(self.frame_count))
+            print('FRAME_COUNT: {}    '.format(self.frame_count))
 
     def render(self, mode='human'):
         self._render_to_screen(mode)
@@ -169,27 +166,173 @@ class CrawlEnv(gym.Env):
         self.process.stdin.write(chars)
         self.process.stdin.flush()        
 
-    def _get_reward(self):
-        if self.done:
-            if self.won:
-                return 1e6
-            else:
-                return -1e6
-        else:
-            return 1
-
     def _read_frame(self):
-        # read without blocking
-        try:
-            self.data_in = self.queue.get_nowait() 
-            #data_in = self.queue.get(timeout=.5)
-        except Empty:
-            return
-        else:
+        self.reward = 0
+        got_data = False
+        prompt = False
+        done = False
+        while not done:
+            try:
+                data = self.queue.get_nowait() 
+                #data = self.queue.get(timeout=.5)
+            except Empty:
+                if not prompt:
+                    done = True
+            else:
+                got_data = True
+                self._process_data(data)
+                # handle prompts, so we don't get stuck
+                if  '--more--' in data:
+                    prompt = True
+                    self._send_chars(' ')
+                elif 'Increase (S)trength, (I)ntelligence, or (D)exterity?' in data:
+                    prompt = True
+                    self._send_chars('S')
+                elif  '[Y]es or [N]o' in data:
+                    prompt = True
+                    self._send_chars('Y')
+                elif  'Confirm with "yes"' in data:
+                    prompt = True
+                    self._send_chars('yes')
+                else:
+                    prompt = False
+                    done = True
+        if got_data:
             self.frame_count += 1
-            self.frame.handle_output(self.data_in)
-            if 'You die' in self.data_in or 'You have escaped' in self.data_in:
-                # game is over
-                self.done = true
-                self.won = ('with the orb' in self.data_in)
+            self._update_game_state()
+
+    def _process_data(self, data):
+        # capture screen update
+        self.frame.handle_output(data)
+
+        # check for game end
+        if 'You die' in data or 'You have escaped' in data:
+            # game is over
+            self.game_state['finished'] = True
+            if 'with the orb' in data:
+                self.game_state['won'] = True
+                self.reward = 1e6
+            else:
+                self.reward = -1e6
+
+    def _update_game_state(self):
+        display = self.frame.to_string()
+        
+        # update hp/max_hp
+        m = re.search(r'Health\: *(\d+)\/(\d+)', display)
+        if m:
+            hp = int(m.group(1))
+            prev_hp = self.game_state['HP']
+            if hp != prev_hp:
+                self.game_state['HP'] = hp
+
+            max_hp = int(m.group(2))
+            prev_max_hp = self.game_state['Max HP']
+            if max_hp != prev_max_hp:
+                self.reward += (max_hp - prev_max_hp)
+                self.game_state['Max HP'] = max_hp
+
+        # update mp/max_mp
+        m = re.search(r'Magic: *(\d+)/(\d+)', display)
+        if m:
+            mp = int(m.group(1))
+            prev_mp = self.game_state['MP']
+            if mp != prev_mp:
+                self.game_state['MP'] = mp
+
+            max_mp = int(m.group(2))
+            prev_max_mp = self.game_state['Max MP']
+            if max_mp != prev_max_mp:
+                self.game_state['Max MP'] = max_mp
+
+        # update experience level
+        m = re.search(r'XL: *(\d+) *Next: *(\d+)', display)
+        if m:
+            xl = int(m.group(1))
+            prev_xl = self.game_state['XL']
+            if xl != prev_xl:
+                self.reward += (xl - prev_xl) * 100
+                self.game_state['XL'] = xl
+
+            pcnt_next_xl = int(m.group(2))
+            prev_pcnt_next_xl = self.game_state['Percent Next XL']
+            if pcnt_next_xl != prev_pcnt_next_xl:
+                self.reward += (pcnt_next_xl - prev_pcnt_next_xl) * 10
+                self.game_state['Percent Next XL'] = xl
+
+        # update character stats
+        m = re.search(r'AC: *(\d+)', display)
+        if m:
+            self.game_state['AC'] = int(m.group(1))
+        
+        m = re.search(r'EV: *(\d+)', display)
+        if m:
+            self.game_state['EV'] = int(m.group(1))
+
+        m = re.search(r'SH: *(\d+)', display)
+        if m:
+            self.game_state['SH'] = int(m.group(1))
+
+        m = re.search(r'Str: *(\d+)', display)
+        if m:
+            self.game_state['Str'] = int(m.group(1))
+        
+        m = re.search(r'Int: *(\d+)', display)
+        if m:
+            self.game_state['Int'] = int(m.group(1))
+
+        m = re.search(r'Dex: *(\d+)', display)
+        if m:
+            self.game_state['Dex'] = int(m.group(1))
+
+        # Update time
+        m = re.search(r'Time: *([\d\.]+)', display)
+        if m:
+            time = float(m.group(1))
+            prev_time = self.game_state['Time']
+            if time > prev_time:
+                # reward actions that advance time (i.e. legal moves)
+                self.reward += 1
+                self.game_state['Time'] = time
+
+        # Update place
+        m = re.search(r'Place: *([A-Za-z0-9\:]+)', display)
+        if m:
+            self.game_state['Place'] = m.group(1)
+
+        # Update noise
+        m = re.search(r'Noise: *(\=*)', display)
+        if m:
+            self.game_state['Noise'] = len(m.group(1))
+
+        if not self.game_state['started']:
+            # check if game has started now
+            if self.game_state['Max HP'] != 0:
+                self.game_state['started'] = True
+                # reward navigation through start menu to actual game
+                self.reward = 1
+            else:
+                self.reward = 0
+
+    def _init_game_state(self):
+        state = {}
+        state['started'] = False
+        state['finished'] = False
+        state['won'] = False
+        state['Time'] = 0.0
+        state['Place'] = ''
+        state['Noise'] = 0
+        state['XL'] = 1
+        state['Percent Next XL'] = 0
+        state['HP'] = 0
+        state['Max HP'] = 0
+        state['MP'] = 0
+        state['Max MP'] = 0
+        state['AC'] = 0
+        state['EV'] = 0
+        state['SH'] = 0
+        state['Str'] = 0
+        state['Int'] = 0
+        state['Dex'] = 0
+        self.game_state = state
 
