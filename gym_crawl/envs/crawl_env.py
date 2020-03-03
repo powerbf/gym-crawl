@@ -173,8 +173,8 @@ class CrawlEnv(gym.Env):
         done = False
         while not done:
             try:
-                data = self.queue.get_nowait() 
-                #data = self.queue.get(timeout=.5)
+                #data = self.queue.get_nowait() 
+                data = self.queue.get(timeout=.0001)
             except Empty:
                 if not prompt:
                     done = True
