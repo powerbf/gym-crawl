@@ -12,6 +12,7 @@ env = gym.make("crawl-v0")
 for episode in range(5):
     env.reset()
     env.render()
+    score = 0
     for t in range(200):
         #print('Step {}\n'.format(t))
 
@@ -22,12 +23,14 @@ for episode in range(5):
         # and returns the observation of the environment, 
         # the reward, if the env is over, and other info.
         observation, reward, done, info = env.step(action)
+        score += reward
 
         # This will display the environment
         # Only display if you really want to see it.
         # Takes much longer to display it.
         env.render()
 
+        print('Action: {:<2d}  Reward: {:<7d}  Cumulative score: {:<10d}'.format(action, reward, score))
         print('Started: ' + str(info['started']) + ', Finished: ' + str(info['finished']) + ', Won: ' + str(info['won']) + '       ')
         print('Health: ' + str(info['HP']) + '/' + str(info['Max HP']) + '  Magic: ' + str(info['MP']) + '/' + str(info['Max MP']) + '      ')
         print('AC: {0:2}  Str: {1:2}'.format(info['AC'], info['Str']))
