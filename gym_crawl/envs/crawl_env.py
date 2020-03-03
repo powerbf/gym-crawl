@@ -275,7 +275,7 @@ class CrawlEnv(gym.Env):
             pcnt_next_xl = int(m.group(2))
             prev_pcnt_next_xl = self.game_state['Percent Next XL']
             if pcnt_next_xl != prev_pcnt_next_xl:
-                self.reward += (pcnt_next_xl - prev_pcnt_next_xl) * 10
+                self.reward += (pcnt_next_xl - prev_pcnt_next_xl)
                 self.game_state['Percent Next XL'] = xl
 
         # update character stats
