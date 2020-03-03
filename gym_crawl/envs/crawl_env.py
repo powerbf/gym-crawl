@@ -211,9 +211,9 @@ class CrawlEnv(gym.Env):
             self.game_state['finished'] = True
             if 'with the orb' in data:
                 self.game_state['won'] = True
-                self.reward = 1e6
+                self.reward = 1000000
             else:
-                self.reward = -1e6
+                self.reward = -1000000
 
     def _update_game_state(self):
         display = self.frame.to_string()
