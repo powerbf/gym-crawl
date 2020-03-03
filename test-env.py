@@ -15,7 +15,8 @@ for episode in range(5):
     env.reset()
     score = 0
     steps = 0
-    for t in range(200):
+    done = False
+    while not done:
         #print('Step {}\n'.format(t))
 
         # This will just create a sample action in any environment.
@@ -34,7 +35,7 @@ for episode in range(5):
         if render:
             env.render()
 
-            print('Step: {:<6d}  Action: {:<2d}  Reward: {:<7d}  Cumulative score: {:<10d}'.format(steps, action, reward, score))
+            print('Step: {:<6d}  Action: {}  Reward: {:<7d}  Cumulative score: {:<10d}'.format(steps, env._action_to_keys(action), reward, score))
             print('Started: ' + str(info['started']) + ', Finished: ' + str(info['finished']) + ', Won: ' + str(info['won']) + '       ')
             print('Health: ' + str(info['HP']) + '/' + str(info['Max HP']) + '  Magic: ' + str(info['MP']) + '/' + str(info['Max MP']) + '      ')
             print('AC: {0:2}  Str: {1:2}'.format(info['AC'], info['Str']))
@@ -43,11 +44,10 @@ for episode in range(5):
             print('XL: {0:2}  Next: {1:2}%  Place: {2:15}'.format(info['XL'], info['Percent Next XL'], info['Place']))
             print('Noise: {:2}  Time: {:8.1f}'.format(info['Noise'], info['Time']))
 
+        if info['Time'] > 200.0:
+            done = True
 
-        if done:
-            break
-
-    print('Episode: {:<3d}  Score: {:<10d}'.format(episode, score))            
+    print('Episode: {:<3d}  Score: {:<10d}'.format(episode+1, score))
 
 
 

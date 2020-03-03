@@ -8,7 +8,9 @@ import os
 import re
 import sys
 
-from gym_crawl.terminal_capture import TerminalCapture
+import gym_crawl.terminal_capture as tc
+
+DEBUG = False
 
 def enqueue_output(out, queue):
     for line in iter(out.readline, b''):
@@ -81,7 +83,7 @@ class CrawlEnv(gym.Env):
         self.crawl_path = '/home/brian/crawl/0.24-ascii'
         self.character_name = 'Lerny'
 
-        self.frame = TerminalCapture()
+        self.frame = None
         self.frame_count = 0
         
         self._init_game_state()
@@ -91,9 +93,10 @@ class CrawlEnv(gym.Env):
         self.close()
 
     def reset(self):
+        if DEBUG: print('CrawlEnv.reset', file=sys.stderr)
         self.close()
 
-        self.frame = TerminalCapture()
+        self.frame = tc.TerminalCapture()
         self.frame_count = 0
         self._init_game_state()
 
@@ -122,7 +125,6 @@ class CrawlEnv(gym.Env):
     def step(self, action):
         # perform action
         keys = self._action_to_keys(action)
-        #print('Sending: ' + re.sub(r'\x1b', 'ESC', keys), file=sys.stderr)
         self.process.stdin.write(keys)
         self.process.stdin.flush()
 
@@ -163,6 +165,7 @@ class CrawlEnv(gym.Env):
     def _send_chars(self, chars):
         """ Send characters to the crawl process
         """
+        if DEBUG: print('Sending: ' + tc.make_printable(chars), file=sys.stderr)
         self.process.stdin.write(chars)
         self.process.stdin.flush()
 
@@ -188,15 +191,20 @@ class CrawlEnv(gym.Env):
                 elif 'Increase (S)trength, (I)ntelligence, or (D)exterity?' in data:
                     prompt = True
                     self._send_chars('S')
+                elif 'Are you sure you want to leave the Dungeon?' in data:
+                    prompt = True
+                    self._send_chars('N')
                 elif  '[Y]es or [N]o' in data:
                     prompt = True
-                    self._send_chars('Y')
+                    self._send_chars('N')
                 elif  'Confirm with "yes"' in data:
                     prompt = True
                     self._send_chars('yes')
                 else:
                     prompt = False
                     done = True
+                if DEBUG and prompt:
+                    print('In response to: \n' + self.frame.to_string(), file=sys.stderr)
         if got_data:
             self.frame_count += 1
             self._update_game_state()
@@ -205,15 +213,25 @@ class CrawlEnv(gym.Env):
         # capture screen update
         self.frame.handle_output(data)
 
+        if self.game_state['finished'] or not self.game_state['started']:
+            return
+
         # check for game end
-        if 'You die' in data or 'You have escaped' in data:
-            # game is over
+        if 'You have escaped' in data:
             self.game_state['finished'] = True
-            if 'with the orb' in data:
+            if self.game_state['Has Orb']:
                 self.game_state['won'] = True
                 self.reward = 1000000
             else:
                 self.reward = -1000000
+        elif 'You die' in data:
+            self.game_state['finished'] = True
+
+        if self.game_state['finished']:
+            return
+
+        if 'You pick up the Orb of Zot' in data:
+            self.game_state['Has Orb'] = True
 
     def _update_game_state(self):
         display = self.frame.to_string()
@@ -318,6 +336,7 @@ class CrawlEnv(gym.Env):
         state = {}
         state['started'] = False
         state['finished'] = False
+        state['Has Orb'] = False
         state['won'] = False
         state['Time'] = 0.0
         state['Place'] = ''

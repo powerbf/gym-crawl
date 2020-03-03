@@ -58,6 +58,7 @@ def make_printable(string):
 class TerminalCapture:
 
     def __init__(self, rows = 24, cols = 80):
+        if DEBUG: print('TerminalCapture.__init__', file=sys.stderr)
         self.screen_cols = cols
         self.screen_rows = rows
         self.data = None
