@@ -3,7 +3,7 @@ import gym
 import gym_crawl
 from gym_crawl.terminal_capture import ESC_CLEAR_SCREEN
 
-render = True
+render = False
 
 if render:
     sys.stdout.write(ESC_CLEAR_SCREEN)
@@ -47,7 +47,7 @@ for episode in range(5):
         if info['Time'] > 200.0:
             done = True
 
-    print('Episode: {:<3d}  Score: {:<10d}'.format(episode+1, score))
+    print('Episode: {}  Steps: {}  Score: {}'.format(episode+1, steps, score))
 
 
 
