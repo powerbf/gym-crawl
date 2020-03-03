@@ -1,0 +1,26 @@
+{
+---------------------------------------------------------------------
+-- Callback: Called when need to choose stat to increase on level up
+---------------------------------------------------------------------
+function choose_stat_gain()
+    return "S"
+end
+
+---------------------------------------------------------------------
+-- Callback: Called when need to answer yes/no prompt
+---------------------------------------------------------------------
+function c_answer_prompt(prompt)
+    if prompt:find("quit") then
+        return false
+    elseif prompt:find("Are you sure you want to leave the Dungeon?") then
+        return false
+    elseif prompt:find("chunks") then
+        -- eat chunks
+        return true
+    elseif prompt:find("Die?") then
+        return true
+    else
+        return false
+    end
+end
+}
