@@ -105,6 +105,17 @@ class TerminalCapture:
 
             for char in line:
 
+                # set bold
+                bold = char['bold']
+                if bold != last_bold:
+                    if bold:
+                        sys.stdout.write(ESC + '[1m')
+                    else:
+                       sys.stdout.write(ESC_FONT_NORMAL)
+                       last_fg_color = None
+                       last_bg_color = None
+                    last_bold = bold
+ 
                 # set foreground color
                 fg_color = char['foreground_color']
                 if fg_color != last_fg_color:
@@ -117,17 +128,6 @@ class TerminalCapture:
                     sys.stdout.write(ESC + '[' + str(bg_color) + 'm')
                     last_bg_color = bg_color
 
-                # set bold
-                bold = char['bold']
-                if bold != last_bold:
-                    if bold:
-                        sys.stdout.write(ESC + '[1m')
-                    else:
-                       sys.stdout.write(ESC_FONT_NORMAL)
-                       last_fg_color = None
-                       last_bg_color = None
-                    last_bold = bold
- 
                 sys.stdout.write(char['char'])
 
             if show_border:
