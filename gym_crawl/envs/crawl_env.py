@@ -26,6 +26,7 @@ class CrawlEnv(gym.Env):
     SCREEN_ROWS = 24
 
     # Keys
+    ESC = tc.ESC
     NUMPAD_0 = '\x1bOp'
     NUMPAD_1 = '\x1bOq'
     NUMPAD_2 = '\x1bOr'
@@ -92,7 +93,8 @@ class CrawlEnv(gym.Env):
         self.reward = 0
 
     def __del__(self):
-        self.close()
+        #self.close() # logging will throw an exception at this point
+        pass
 
     def reset(self):
         logger.info('reset')
@@ -152,10 +154,11 @@ class CrawlEnv(gym.Env):
     def close(self):
         if self.process is not None and self.process.poll() is None:
             try:
-                self._send_chars(CTRL_Q + 'yesyes') # ask to quit
+                self._send_chars(ESC+ESC+ESC + CTRL_Q + 'yes' + ESC+ESC+ESC)
                 self.process.wait(timeout=0.5)
             except:
-                self.process.kill()
+                logger.info('Killing process')
+                self.process.kill() # die horribly
         if self.render_file is not None:
             self.render_file.close()
   

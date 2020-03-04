@@ -11,7 +11,7 @@ end
 ---------------------------------------------------------------------
 function c_answer_prompt(prompt)
     if prompt:find("quit") then
-        return false
+        return true
     elseif prompt:find("Are you sure you want to leave the Dungeon?") then
         return false
     elseif prompt:find("chunks") then
