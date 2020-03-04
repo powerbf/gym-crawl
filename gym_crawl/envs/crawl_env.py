@@ -207,7 +207,7 @@ class CrawlEnv(gym.Env):
                     self._send_chars('yes')
                 else:
                     prompt = False
-                    done = True
+
         if got_data:
             self.frame_count += 1
             self._update_game_state()
