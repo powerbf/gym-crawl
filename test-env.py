@@ -60,9 +60,6 @@ for episode in range(5):
             print('XL: {0:2}  Next: {1:2}%  Place: {2:15}'.format(info['XL'], info['Percent Next XL'], info['Place']))
             print('Noise: {:2}  Time: {:8.1f}'.format(info['Noise'], info['Time']))
 
-        if info['Time'] > 200.0 or steps > 1000:
-            done = True
-
         if done:
             if not render:
                 print('Episode: {}  Steps: {}  Score: {}'.format(episode+1, steps, score))   
