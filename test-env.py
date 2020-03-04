@@ -1,9 +1,25 @@
 import sys
+import logging
 import gym
 import gym_crawl
 from gym_crawl.terminal_capture import ESC_CLEAR_SCREEN
 
+
+# process command line args
 render = False
+log_level = logging.INFO
+arguments = sys.argv[1:]
+for arg in arguments:
+    if arg == '-render':
+        render = True
+    elif arg == '-debug':
+        log_level = logging.DEBUG
+    elif arg == '-debug-crawl-env':
+        logging.getLogger('crawl-env').setLevel(logging.DEBUG)
+    elif arg == '-debug-term-capture':
+        logging.getLogger('term-capture').setLevel(logging.DEBUG)
+
+logging.basicConfig(filename='test-env.log', filemode='w', level=log_level, format='%(asctime)s:%(levelname)s:%(module)s:%(message)s')
 
 if render:
     sys.stdout.write(ESC_CLEAR_SCREEN)
@@ -44,10 +60,15 @@ for episode in range(5):
             print('XL: {0:2}  Next: {1:2}%  Place: {2:15}'.format(info['XL'], info['Percent Next XL'], info['Place']))
             print('Noise: {:2}  Time: {:8.1f}'.format(info['Noise'], info['Time']))
 
-        if info['Time'] > 200.0:
+        if info['Time'] > 200.0 or steps > 1000:
             done = True
 
-    print('Episode: {}  Steps: {}  Score: {}'.format(episode+1, steps, score))
+        if done:
+            if not render:
+                print('Episode: {}  Steps: {}  Score: {}'.format(episode+1, steps, score))   
+            logging.info('Episode: {}  Steps: {}  Score: {}'.format(episode+1, steps, score))
+            logging.info('  XL: {:2}  Next: {:2}%  Time: {:8.1f} Place: {:15}'.format(info['XL'], info['Percent Next XL'], info['Time'], info['Place']))
+            logging.info('  Health: ' + str(info['HP']) + '/' + str(info['Max HP']) + '  Magic: ' + str(info['MP']) + '/' + str(info['Max MP']) + '      ')
 
 
 

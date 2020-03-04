@@ -5,8 +5,9 @@
 from curses import ascii
 import re
 import sys
+import logging
 
-DEBUG = False
+logger = logging.getLogger('term-capture')
 
 ESC = chr(ascii.ESC)
 DEL = chr(ascii.DEL)
@@ -58,7 +59,7 @@ def make_printable(string):
 class TerminalCapture:
 
     def __init__(self, rows = 24, cols = 80):
-        if DEBUG: print('TerminalCapture.__init__', file=sys.stderr)
+        logger.debug('__init__')
         self.screen_cols = cols
         self.screen_rows = rows
         self.data = None
@@ -151,14 +152,18 @@ class TerminalCapture:
     def handle_output(self, data):
         # update our internal representation of the screen
         # this is tricky because the raw data contains ASCII control sequences
-        if DEBUG: print('\nProcessing data: ' + make_printable(data), file=sys.stderr)
+        logger.debug('\nProcessing data: ' + make_printable(data))
         self.data = data
         i = 0
         string = ''
+        string_row = 0
+        string_col = 0
         while i < len(data):
             if data[i] >= ' ' and data[i] != DEL:
-                if DEBUG:
-                    #print('Placing character ' + data[i] + ' at {},{}\n'.format(self.row, self.col), file=sys.stderr)
+                if logger.isEnabledFor(logging.DEBUG):
+                    if string == '':
+                        string_row = self.row
+                        string_col = self.col
                     string += data[i]
                 self.screen[self.row][self.col]['char'] = data[i]
                 self.screen[self.row][self.col]['foreground_color'] = self.curr_foreground_color
@@ -166,8 +171,8 @@ class TerminalCapture:
                 self.screen[self.row][self.col]['bold'] = self.bold
                 self.col += 1
             else:
-                if DEBUG and len(string) > 0:
-                    print('Placed string at {:d},{:d}: {}'.format(self.row, self.col - len(string), string), file=sys.stderr)
+                if logger.isEnabledFor(logging.DEBUG) and len(string) > 0:
+                    logger.debug('Placed string at {:d},{:d}: {}'.format(string_row, string_col, string))
                     string = ''
             
                 if data[i] == ESC:
@@ -196,7 +201,7 @@ class TerminalCapture:
             i += 1
 
     def _handle_escape_sequence(self, esc_seq):
-        if DEBUG: print('Handling escape sequence: ' + make_printable(esc_seq), file=sys.stderr)
+        logger.debug('Handling escape sequence: ' + make_printable(esc_seq))
         esc_seq = esc_seq[1:] # discard ESC character
         if esc_seq == '':
             pass
@@ -250,7 +255,7 @@ class TerminalCapture:
                 else:
                     self.row = 0
                     self.col = 0
-                if DEBUG: print('Moved cursor to {},{}'.format(self.row, self.col), file=sys.stderr)
+                logger.debug('Moved cursor to {},{}'.format(self.row, self.col))
             elif esc_seq == CLEAR_SCREEN:
                 # clear screen
                 self._clear_screen()
@@ -288,7 +293,7 @@ class TerminalCapture:
             elif esc_seq[-1] == 'X':
                 # CSI Ps X  Erase Ps Character(s) (default = 1) (ECH).
                 num = self._extract_number(esc_seq, 1)
-                if DEBUG: print('Erasing {} chars at {},{}'.format(num, self.row, self.col), file=sys.stderr)
+                logger.debug('Erasing {} chars at {},{}'.format(num, self.row, self.col))
                 line = self.screen[self.row]
                 for dest in range(self.col, min(self.col+num, self.screen_cols)):
                     line[dest] = self._new_char()
@@ -304,13 +309,13 @@ class TerminalCapture:
                         # reset everything
                         self.curr_foreground_color = DEFAULT_FOREGROUND_COLOR
                         self.curr_background_color = BG_COLOR_BLACK
-                        if DEBUG: print('Set foreground color to: {}'.format(self.curr_foreground_color), file=sys.stderr)
+                        logger.debug('Set foreground color to: {}'.format(self.curr_foreground_color))
                         self.bold = False
                     elif num == 1:
                         self.bold = True
                     elif num == DEFAULT_FOREGROUND_COLOR or (num >= 30 and num <= 37) or (num >= 90 and num <=97):
                         self.curr_foreground_color = num 
-                        if DEBUG: print('Set foreground color to: {}'.format(self.curr_foreground_color), file=sys.stderr)
+                        logger.debug('Set foreground color to: {}'.format(self.curr_foreground_color))
                     elif num == BG_COLOR_DEFAULT:
                         self.curr_background_color = BG_COLOR_BLACK
                     elif num >= BG_COLOR_BLACK and num <= BG_COLOR_WHITE:
@@ -334,7 +339,7 @@ class TerminalCapture:
                 # Xterm window settings
                 pass
             else:
-                if DEBUG: print('Unknown escape sequence: ESC' + esc_seq, file=sys.stderr)
+                logger.debug('Unknown escape sequence: ESC' + esc_seq)
         elif esc_seq == '7':
             # save cursor position
             self.saved_row = self.row
@@ -364,7 +369,7 @@ class TerminalCapture:
             # Exit alternate keypad mode (numlock on?)
             pass
         else:
-            if DEBUG: print('Unknown escape sequence: ESC' + esc_seq, file=sys.stderr)
+            logger.debug('Unknown escape sequence: ESC' + esc_seq)
 
     def _extract_number(self, string, default):
         m = re.search(r'(\d+)', string)

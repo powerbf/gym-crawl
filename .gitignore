@@ -3,5 +3,6 @@
 .idea
 *.out
 *.err
+*.log
 /logs
 *~
