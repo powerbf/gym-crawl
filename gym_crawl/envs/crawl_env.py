@@ -221,8 +221,10 @@ class CrawlEnv(gym.Env):
             self.game_state['finished'] = True
             if self.game_state['Has Orb']:
                 self.game_state['won'] = True
+                if DEBUG: print('Reward for winning: +1e6', file=sys.stderr)
                 self.reward = 1000000
             else:
+                if DEBUG: print('Reward for leaving without orb: -1e6', file=sys.stderr)
                 self.reward = -1000000
         elif 'You die' in data:
             self.game_state['finished'] = True
@@ -247,6 +249,7 @@ class CrawlEnv(gym.Env):
             max_hp = int(m.group(2))
             prev_max_hp = self.game_state['Max HP']
             if max_hp != prev_max_hp:
+                if DEBUG: print('Reward for max HP: {}'.format(max_hp - prev_max_hp), file=sys.stderr)
                 self.reward += (max_hp - prev_max_hp)
                 self.game_state['Max HP'] = max_hp
 
@@ -265,18 +268,20 @@ class CrawlEnv(gym.Env):
 
         # update experience level
         m = re.search(r'XL: *(\d+) *Next: *(\d+)', display)
-        if m:
+        if m and m.group(1) and m.group(2):
             xl = int(m.group(1))
             prev_xl = self.game_state['XL']
             if xl != prev_xl:
+                if DEBUG: print('Reward for XL: {}'.format(xl - prev_xl), file=sys.stderr)
                 self.reward += (xl - prev_xl) * 100
                 self.game_state['XL'] = xl
 
             pcnt_next_xl = int(m.group(2))
             prev_pcnt_next_xl = self.game_state['Percent Next XL']
             if pcnt_next_xl != prev_pcnt_next_xl:
+                if DEBUG: print('Reward for percent XL: {}'.format(pcnt_next_xl - prev_pcnt_next_xl), file=sys.stderr)
                 self.reward += (pcnt_next_xl - prev_pcnt_next_xl)
-                self.game_state['Percent Next XL'] = xl
+                self.game_state['Percent Next XL'] = pcnt_next_xl
 
         # update character stats
         m = re.search(r'AC: *(\d+)', display)
@@ -308,8 +313,9 @@ class CrawlEnv(gym.Env):
         if m:
             time = float(m.group(1))
             prev_time = self.game_state['Time']
-            if time > prev_time:
+            if time - prev_time >= 0.1:
                 # reward actions that advance time (i.e. legal moves)
+                if DEBUG: print('Reward for time: +1', file=sys.stderr)
                 self.reward += 1
                 self.game_state['Time'] = time
 
@@ -328,8 +334,10 @@ class CrawlEnv(gym.Env):
             if self.game_state['Max HP'] != 0:
                 self.game_state['started'] = True
                 # reward navigation through start menu to actual game
+                if DEBUG: print('Reward for starting: 1', file=sys.stderr)
                 self.reward = 1
             else:
+                if DEBUG: print('Reward for not starting: 0', file=sys.stderr)
                 self.reward = 0
 
     def _init_game_state(self):
