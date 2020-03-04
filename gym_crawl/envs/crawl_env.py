@@ -201,18 +201,6 @@ class CrawlEnv(gym.Env):
                     logger.info('Detected --more-- prompt')
                     prompt = True
                     self._send_chars(' ')
-                elif 'Increase (S)trength, (I)ntelligence, or (D)exterity?' in data:
-                    prompt = True
-                    self._send_chars('S')
-                elif 'Are you sure you want to leave the Dungeon?' in data:
-                    prompt = True
-                    self._send_chars('N')
-                elif  '[Y]es or [N]o' in data:
-                    prompt = True
-                    self._send_chars('N')
-                elif  'Confirm with "yes"' in data:
-                    prompt = True
-                    self._send_chars('yes')
                 else:
                     prompt = False
 
