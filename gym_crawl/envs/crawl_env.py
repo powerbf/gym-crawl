@@ -188,7 +188,7 @@ class CrawlEnv(gym.Env):
         while not done:
             try:
                 #data = self.queue.get_nowait()
-                data = self.queue.get(timeout=.0001)
+                data = self.queue.get(timeout=.001)
             except Empty:
                 if not prompt:
                     done = True
@@ -198,6 +198,7 @@ class CrawlEnv(gym.Env):
                 self._process_data(data)
                 # handle prompts, so we don't get stuck
                 if  '--more--' in data:
+                    logger.info('Detected --more-- prompt')
                     prompt = True
                     self._send_chars(' ')
                 elif 'Increase (S)trength, (I)ntelligence, or (D)exterity?' in data:
