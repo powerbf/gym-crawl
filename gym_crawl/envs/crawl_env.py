@@ -252,8 +252,9 @@ class CrawlEnv(gym.Env):
             max_hp = int(m.group(2))
             prev_max_hp = self.game_state['Max HP']
             if max_hp != prev_max_hp:
-                logger.debug('Reward for max HP: {}'.format(max_hp - prev_max_hp))
-                self.reward += (max_hp - prev_max_hp)
+                if self.game_state['started']:
+                    logger.debug('Reward for increased max HP: {}'.format(max_hp - prev_max_hp))
+                    self.reward += (max_hp - prev_max_hp)
                 self.game_state['Max HP'] = max_hp
 
         # update mp/max_mp
@@ -275,15 +276,17 @@ class CrawlEnv(gym.Env):
             xl = int(m.group(1))
             prev_xl = self.game_state['XL']
             if xl != prev_xl:
-                logger.debug('Reward for XL: {}'.format(xl - prev_xl))
-                self.reward += (xl - prev_xl) * 100
+                if self.game_state['started']:
+                    logger.debug('Reward for XL: {}'.format(xl - prev_xl))
+                    self.reward += (xl - prev_xl) * 100
                 self.game_state['XL'] = xl
 
             pcnt_next_xl = int(m.group(2))
             prev_pcnt_next_xl = self.game_state['Percent Next XL']
             if pcnt_next_xl != prev_pcnt_next_xl:
-                logger.debug('Reward for percent XL: {}'.format(pcnt_next_xl - prev_pcnt_next_xl))
-                self.reward += (pcnt_next_xl - prev_pcnt_next_xl)
+                if self.game_state['started']:
+                    logger.debug('Reward for percent XL: {}'.format(pcnt_next_xl - prev_pcnt_next_xl))
+                    self.reward += (pcnt_next_xl - prev_pcnt_next_xl)
                 self.game_state['Percent Next XL'] = pcnt_next_xl
 
         # update character stats
@@ -316,7 +319,7 @@ class CrawlEnv(gym.Env):
         if m:
             time = float(m.group(1))
             prev_time = self.game_state['Time']
-            if time - prev_time >= 0.1:
+            if time > prev_time:
                 logger.debug('Time: ' + str(time))
                 # reward actions that advance time (i.e. legal moves)
                 logger.debug('Reward for time: +1')
