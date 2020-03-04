@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import sys
+import time
 
 import gym_crawl.terminal_capture as tc
 
@@ -88,6 +89,7 @@ class CrawlEnv(gym.Env):
 
         self.frame = None
         self.frame_count = 0
+        self.stuck_steps = 0
         
         self._init_game_state()
         self.reward = 0
@@ -102,8 +104,8 @@ class CrawlEnv(gym.Env):
 
         self.frame = tc.TerminalCapture()
         self.frame_count = 0
+        self.stuck_steps = 0
         self._init_game_state()
-
 
         crawl_bin_dir = self.crawl_path + '/bin'
         crawl_saves_dir = self.crawl_path + '/bin/saves'
@@ -133,7 +135,12 @@ class CrawlEnv(gym.Env):
 
         self._read_frame();
 
-        return self.frame, self.reward, self.game_state['finished'], self.game_state
+        done = self.game_state['finished']
+        if not done and self.stuck_steps >= 100:
+            logger.info('Stuck for 100 steps. Giving up. Screen dump:\n' + self.frame.to_string())
+            done = True
+
+        return self.frame, self.reward, done, self.game_state
 
     def _render_to_file(self, mode='human'):
         if self.render_file is None:
@@ -211,6 +218,12 @@ class CrawlEnv(gym.Env):
         if got_data:
             self.frame_count += 1
             self._update_game_state()
+            self.stuck_steps = 0
+        else:
+            self.stuck_steps += 1
+            time.sleep(0.001)
+            if self.stuck_steps >= 95:
+                time.sleep(1)
 
     def _process_data(self, data):
         # capture screen update
