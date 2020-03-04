@@ -125,8 +125,7 @@ class CrawlEnv(gym.Env):
     def step(self, action):
         # perform action
         keys = self._action_to_keys(action)
-        self.process.stdin.write(keys)
-        self.process.stdin.flush()
+        self._send_chars(keys)
 
         self._read_frame();
 
@@ -182,6 +181,7 @@ class CrawlEnv(gym.Env):
                 if not prompt:
                     done = True
             else:
+                if DEBUG: print('Got {} bytes of data'.format(len(data)), file=sys.stderr)
                 got_data = True
                 self._process_data(data)
                 # handle prompts, so we don't get stuck
