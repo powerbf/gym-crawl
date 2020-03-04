@@ -1,3 +1,7 @@
+# disable more prompts because we can't handle them properly
+show_more = false
+: crawl.enable_more(false)
+
 {
 ---------------------------------------------------------------------
 -- Callback: Called when need to choose stat to increase on level up
