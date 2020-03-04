@@ -348,6 +348,7 @@ class CrawlEnv(gym.Env):
             else:
                 logger.debug('Reward for not starting: 0')
                 self.reward = 0
+                self.stuck_steps += 1
 
     def _init_game_state(self):
         state = {}
