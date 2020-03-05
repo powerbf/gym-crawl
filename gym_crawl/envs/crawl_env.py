@@ -55,6 +55,7 @@ class CrawlEnv(gym.Env):
 
         self.frame = None
         self.frame_count = 0
+        self.steps = 0
         self.stuck_steps = 0
         self.error = False
         
@@ -71,6 +72,7 @@ class CrawlEnv(gym.Env):
 
         self.frame = tc.TerminalCapture()
         self.frame_count = 0
+        self.steps = 0
         self.stuck_steps = 0
         self.error = False
         self._init_game_state()
@@ -98,6 +100,7 @@ class CrawlEnv(gym.Env):
 
     def step(self, action):
         # perform action
+        self.steps += 1
         keys = self._action_to_keys(action)
         self._send_chars(keys)
 
@@ -107,6 +110,9 @@ class CrawlEnv(gym.Env):
         if not done and self.stuck_steps >= 1000:
             logger.info('Stuck for 1000 steps. Giving up. Screen dump:\n' + self.frame.to_string())
             done = True
+
+        if self.steps % 1000 == 0:
+            logger.info('Step {}: Time={}'.format(self.steps, self.game_state['Time']))
 
         return self.frame, self.reward, done, self.game_state
 
@@ -150,7 +156,7 @@ class CrawlEnv(gym.Env):
             self.process.stdin.flush()
         except Exception as e:
             logger.error(str(e))
-            logger.error("I think I overran crawl's input buffer. This is where I was:\n" + self.screen.to_string())
+            logger.error("I think I overran crawl's input buffer. This is where I was:\n" + self.frame.to_string())
             self.error = True
 
     def _read_frame(self):
@@ -173,11 +179,11 @@ class CrawlEnv(gym.Env):
                     self._send_chars(' ')
                 elif "Inscribe with what?" in data or "Replace inscription with what?" in data:
                     # Nip this in the bud because it can crash crawl if too many characters are sent
-                    logger.info('Detected inscriptions prompt')
+                    logger.debug('Detected inscriptions prompt')
                     self._send_chars(ESC)
                 elif "Drop what? 0/52 slots" in data:
                     # This can alos crash crawl if too many characters are sent
-                    logger.info('Detected drop prompt for empty inventory')
+                    logger.debug('Detected drop prompt for empty inventory')
                     self._send_chars(ESC)
         if got_data:
             self.frame_count += 1
