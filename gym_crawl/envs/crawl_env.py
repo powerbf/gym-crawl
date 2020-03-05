@@ -9,8 +9,16 @@ import os
 import re
 import sys
 import time
-
 import gym_crawl.terminal_capture as tc
+
+# Keys
+ESC = tc.ESC
+CTRL_A = '\x01'
+CTRL_E = '\x05'
+CTRL_O = '\x1F'
+CTRL_P = '\x10'
+CTRL_Q = '\x11'
+CTRL_X = '\x18'
 
 logger = logging.getLogger('crawl-env')
 
@@ -25,15 +33,6 @@ class CrawlEnv(gym.Env):
     # dimensions of screen in characters (not pixels!)
     SCREEN_COLS = 80
     SCREEN_ROWS = 24
-
-    # Keys
-    ESC = tc.ESC
-    CTRL_A = '\x01'
-    CTRL_E = '\x05'
-    CTRL_O = '\x1F'
-    CTRL_P = '\x10'
-    CTRL_Q = '\x11'
-    CTRL_X = '\x18'
 
     # Essential commands
     ACTION_KEYS="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,<>';" + CTRL_X + ESC
@@ -150,15 +149,13 @@ class CrawlEnv(gym.Env):
     def _read_frame(self):
         self.reward = 0
         got_data = False
-        prompt = False
         done = False
         while not done:
             try:
                 #data = self.queue.get_nowait()
                 data = self.queue.get(timeout=.001)
             except Empty:
-                if not prompt:
-                    done = True
+                done = True
             else:
                 logger.debug('Got {} bytes of data'.format(len(data)))
                 got_data = True
@@ -166,11 +163,15 @@ class CrawlEnv(gym.Env):
                 # handle prompts, so we don't get stuck
                 if  '--more--' in data:
                     logger.info('Detected --more-- prompt')
-                    prompt = True
                     self._send_chars(' ')
-                else:
-                    prompt = False
-
+                elif "Inscribe with what?" in data or "Replace inscription with what?" in data:
+                    # Nip this in the bud because it can crash crawl if too many characters are sent
+                    logger.info('Detected inscriptions prompt')
+                    self._send_chars(ESC)
+                elif "Drop what? 0/52 slots" in data:
+                    # This can alos crash crawl if too many characters are sent
+                    logger.info('Detected drop prompt for empty inventory')
+                    self._send_chars(ESC)
         if got_data:
             self.frame_count += 1
             self._update_game_state()
