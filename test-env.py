@@ -2,7 +2,7 @@ import sys
 import logging
 import gym
 import gym_crawl
-from gym_crawl.terminal_capture import ESC_CLEAR_SCREEN
+import gym_crawl.terminal_capture as tc
 
 
 # process command line args
@@ -22,7 +22,7 @@ for arg in arguments:
 logging.basicConfig(filename='test-env.log', filemode='w', level=log_level, format='%(asctime)s:%(levelname)s:%(module)s:%(message)s')
 
 if render:
-    sys.stdout.write(ESC_CLEAR_SCREEN)
+    sys.stdout.write(tc.ESC_CLEAR_SCREEN)
 
 env = gym.make("crawl-v0")
 
@@ -50,8 +50,8 @@ for episode in range(5):
         # Takes much longer to display it.
         if render:
             env.render()
-
-            print('Step: {:<6d}  Action: {}  Reward: {:<7d}  Cumulative score: {:<10d}'.format(steps, env._action_to_keys(action), reward, score))
+            keys = tc.make_printable(env._action_to_keys(action))
+            print('Step: {:<6d}  Action: {:<5}  Reward: {:<7d}  Cumulative score: {:<10d}'.format(steps, keys, reward, score))
             print('Started: ' + str(info['started']) + ', Finished: ' + str(info['finished']) + ', Won: ' + str(info['won']) + '       ')
             print('Health: ' + str(info['HP']) + '/' + str(info['Max HP']) + '  Magic: ' + str(info['MP']) + '/' + str(info['Max MP']) + '      ')
             print('AC: {0:2}  Str: {1:2}'.format(info['AC'], info['Str']))

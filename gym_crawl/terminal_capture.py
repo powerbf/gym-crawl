@@ -44,12 +44,21 @@ def make_printable(string):
     """
     result = ''
     for ch in string:
-        if ch >= ' ' and ch <= '~':
-            result += ch
-        elif ch == ESC:
-            result += '\ESC'
+        if ch < ' ':
+            if ch == ESC:
+                result += '\\ESC'
+            elif ch == '\t':
+                result += '\\t'
+            elif ch == '\n':
+                result += '\\n'
+            elif ch == '\r':
+                result += '\\r'
+            else:
+                result += '^' + chr(ord(ch)+ord('@'))
         elif ch == DEL:
             result += 'DEL'
+        elif ch >= ' ' and ch <= '~':
+            result += ch
         else:
             o = ord(ch)
             result += "\\x%0.2x" % o

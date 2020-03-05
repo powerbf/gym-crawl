@@ -28,59 +28,26 @@ class CrawlEnv(gym.Env):
 
     # Keys
     ESC = tc.ESC
-    NUMPAD_0 = '\x1bOp'
-    NUMPAD_1 = '\x1bOq'
-    NUMPAD_2 = '\x1bOr'
-    NUMPAD_3 = '\x1bOs'
-    NUMPAD_4 = '\x1bOt'
-    NUMPAD_5 = '\x1bOu'
-    NUMPAD_6 = '\x1bOv'
-    NUMPAD_7 = '\x1bOw'
-    NUMPAD_8 = '\x1bOx'
-    NUMPAD_9 = '\x1bOy' 
-
+    CTRL_A = '\x01'
+    CTRL_E = '\x05'
+    CTRL_O = '\x1F'
+    CTRL_P = '\x10'
     CTRL_Q = '\x11'
+    CTRL_X = '\x18'
 
-    # commands
-    WAIT = '.'    
-    GO_NORTH = 'k'
-    GO_SOUTH = 'j'
-    GO_EAST = 'h'
-    GO_WEST = 'l'
-    GO_NORTHWEST = 'y'
-    GO_NORTHEAST = 'u'
-    GO_SOUTHWEST = 'b'
-    GO_SOUTHEAST = 'n'
+    # Essential commands
+    ACTION_KEYS="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,<>';" + CTRL_X + ESC
+    # Auto actions
+    ACTION_KEYS += '5o\t'
+    # Non-essential info commands
+    ACTION_KEYS += '@$%^[}"' + CTRL_O + CTRL_P
+    # Some other useful commands
+    #ACTION_KEYS += '\\' + CTRL_A + CTRL_E
 
-    #GO_NORTH = NUMPAD_8
-    #GO_SOUTH = NUMPAD_2
-    #GO_EAST = NUMPAD_6
-    #GO_WEST = NUMPAD_4
-    #GO_SOUTHWEST = NUMPAD_1
-    #GO_SOUTHEAST = NUMPAD_3
-    #GO_NORTHWEST = NUMPAD_7
-    #GO_NORTHEAST = NUMPAD_9
-
-    GO_UPSTAIRS = '<'
-    GO_DOWNSTAIRS = '>'
-
-    ACTION_LOOKUP = {
-        0 : WAIT,
-        1 : GO_NORTHWEST,
-        2 : GO_NORTH,
-        3 : GO_NORTHEAST,
-        4 : GO_WEST,
-        5 : GO_EAST,
-        6 : GO_SOUTHWEST,
-        7 : GO_SOUTH,
-        8 : GO_SOUTHEAST,
-        9 : GO_UPSTAIRS,
-        10: GO_DOWNSTAIRS
-    }
 
     def __init__(self):
         logger.info('__init__')
-        self.action_space = spaces.Discrete(11) 
+        self.action_space = spaces.Discrete(len(self.ACTION_KEYS)) 
         self.process = None
         self.queue = None
         self.render_file = None
@@ -136,8 +103,8 @@ class CrawlEnv(gym.Env):
         self._read_frame();
 
         done = self.game_state['finished']
-        if not done and self.stuck_steps >= 100:
-            logger.info('Stuck for 100 steps. Giving up. Screen dump:\n' + self.frame.to_string())
+        if not done and self.stuck_steps >= 1000:
+            logger.info('Stuck for 1000 steps. Giving up. Screen dump:\n' + self.frame.to_string())
             done = True
 
         return self.frame, self.reward, done, self.game_state
@@ -170,7 +137,7 @@ class CrawlEnv(gym.Env):
             self.render_file.close()
   
     def _action_to_keys(self, action):
-        keys = self.ACTION_LOOKUP[action]
+        keys = self.ACTION_KEYS[action]
         return keys
 
     def _send_chars(self, chars):
@@ -211,8 +178,6 @@ class CrawlEnv(gym.Env):
         else:
             self.stuck_steps += 1
             time.sleep(0.001)
-            if self.stuck_steps >= 95:
-                time.sleep(1)
 
     def _process_data(self, data):
         # capture screen update
