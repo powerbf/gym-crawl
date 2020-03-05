@@ -56,6 +56,7 @@ class CrawlEnv(gym.Env):
         self.frame = None
         self.frame_count = 0
         self.stuck_steps = 0
+        self.error = False
         
         self._init_game_state()
         self.reward = 0
@@ -71,6 +72,7 @@ class CrawlEnv(gym.Env):
         self.frame = tc.TerminalCapture()
         self.frame_count = 0
         self.stuck_steps = 0
+        self.error = False
         self._init_game_state()
 
         crawl_bin_dir = self.crawl_path + '/bin'
@@ -101,7 +103,7 @@ class CrawlEnv(gym.Env):
 
         self._read_frame();
 
-        done = self.game_state['finished']
+        done = self.error or self.game_state['finished']
         if not done and self.stuck_steps >= 1000:
             logger.info('Stuck for 1000 steps. Giving up. Screen dump:\n' + self.frame.to_string())
             done = True
@@ -143,8 +145,13 @@ class CrawlEnv(gym.Env):
         """ Send characters to the crawl process
         """
         logger.debug('Sending: ' + tc.make_printable(chars))
-        self.process.stdin.write(chars)
-        self.process.stdin.flush()
+        try:
+            self.process.stdin.write(chars)
+            self.process.stdin.flush()
+        except Exception as e:
+            logger.error(str(e))
+            logger.error("I think I overran crawl's input buffer. This is where I was:\n" + self.screen.to_string())
+            self.error = True
 
     def _read_frame(self):
         self.reward = 0
