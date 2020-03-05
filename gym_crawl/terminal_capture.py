@@ -80,6 +80,7 @@ class TerminalCapture:
         self.curr_foreground_color = DEFAULT_FOREGROUND_COLOR
         self.curr_background_color = BG_COLOR_BLACK
         self.bold = False
+        self.line_wrap = False
         self._init_screen()
 
 
@@ -178,7 +179,12 @@ class TerminalCapture:
                 self.screen[self.row][self.col]['foreground_color'] = self.curr_foreground_color
                 self.screen[self.row][self.col]['background_color'] = self.curr_background_color
                 self.screen[self.row][self.col]['bold'] = self.bold
-                self.col += 1
+                # move cursor on
+                if self.col == self.screen_cols - 1:
+                    if self.line_wrap:
+                        self._set_pos(self.row + 1, 0)
+                else:
+                    self._set_col(self.col + 1)
             else:
                 if logger.isEnabledFor(logging.DEBUG) and len(string) > 0:
                     logger.debug('Placed string at {:d},{:d}: {}'.format(string_row, string_col, string))
@@ -202,10 +208,9 @@ class TerminalCapture:
                     self._handle_escape_sequence(esc_seq)
      
                 elif data[i] == '\n':
-                    self.row += 1
-                    self.col = 0
+                    self._set_pos(self.row + 1, 0)
                 elif data[i] == '\r':
-                    self.col = 0
+                    self._set_col(0)
 
             i += 1
 
@@ -220,50 +225,39 @@ class TerminalCapture:
         elif esc_seq[0] == '[':
             if esc_seq[-1] == 'A':
                 # cursor up
-                self.row -= self._extract_number(esc_seq, 1)
-                if self.row < 0:
-                    self.row = 0
+                self._set_row(self.row - self._extract_number(esc_seq, 1))
             elif esc_seq[-1] == 'B':
                 # cursor down
-                self.row += self._extract_number(esc_seq, 1)
-                if self.row > self.screen_rows - 1:
-                    self.row = self.screen_rows - 1
+                self._set_row(self.row + self._extract_number(esc_seq, 1))
             elif esc_seq[-1] == 'C':
                 # cursor forward
-                self.col += self._extract_number(esc_seq, 1)
-                if self.col > self.screen_cols - 1:
-                    self.col = self.screen_cols - 1
+                self._set_col(self.col + self._extract_number(esc_seq, 1))
             elif esc_seq[-1] == 'D':
                 # cursor back
-                self.col -= self._extract_number(esc_seq, 1)
-                if self.col < 0:
-                    self.col = 0
+                self._set_col(self.col - self._extract_number(esc_seq, 1))
             if esc_seq[-1] == 'E':
                 # CNL (Cursor Next Line): go to start of nth line down
-                self.col = 0
-                self.row += self._extract_number(esc_seq, 1)
-                if self.row > self.screen_rows - 1:
-                    self.row = self.screen_rows - 1
+                num = self._extract_number(esc_seq, 1)
+                self._set_pos(self.row + num, 0)
             elif esc_seq[-1] == 'F':
                 # CPL (Cursor Previous Line): go to start of nth line up
-                self.col = 0
-                self.row -= self._extract_number(esc_seq, 1)
-                if self.row < 0:
-                    self.row = 0
+                num = self._extract_number(esc_seq, 1)
+                self._set_pos(self.row - num, 0)
             elif esc_seq[-1] == 'G':
-                # move cursor to specified column
-                # convert from 1-based to 0-based
-                self.col = self._extract_number(esc_seq, 1) - 1
+                # move cursor to specified column (1-based)
+                num = self._extract_number(esc_seq, 1)
+                self._set_col(num, 1)
             elif esc_seq[-1] == 'H' or esc_seq[-1] == 'f':
                 # move to specified cursor to position
                 m = re.search(r'(\d*);(\d*)', esc_seq)
                 if m :
                     # coords are 1-based, so we have to subtract one to convert to 0-based
-                    self.row = 0 if m.group(1) == '' else int(m.group(1))-1
-                    self.col = 0 if m.group(2) == '' else int(m.group(2))-1
+                    row = 0 if m.group(1) == '' else int(m.group(1))-1
+                    col = 0 if m.group(2) == '' else int(m.group(2))-1
                 else:
-                    self.row = 0
-                    self.col = 0
+                    row = 0
+                    col = 0
+                self._set_pos(row, col)
                 logger.debug('Moved cursor to {},{}'.format(self.row, self.col))
             elif esc_seq == CLEAR_SCREEN:
                 # clear screen
@@ -306,10 +300,11 @@ class TerminalCapture:
                 line = self.screen[self.row]
                 for dest in range(self.col, min(self.col+num, self.screen_cols)):
                     line[dest] = self._new_char()
-                self.col = min(self.col+num, self.screen_cols-1)
+                self._set_col(self.col + num)
             elif esc_seq[-1] == 'd':
                 # set vertical position
-                self.row = self._extract_number(esc_seq, 1) - 1
+                row = self._extract_number(esc_seq, 1)
+                self._set_row(row, 1)
             elif esc_seq[-1] == 'm':
                 # font effects
                 nums = self._extract_numbers(esc_seq, 0)
@@ -339,11 +334,17 @@ class TerminalCapture:
                 if esc_seq == '[4h':
                     # Insert Mode (IRM)
                     pass
+                elif esc_seq == '[=7h':
+                    logger.debug('Turning line wrap on')
+                    self.line_wrap = True
             elif esc_seq[-1] == 'l':
                 # Reset mode (inverse of control codes ending in h)
                 if esc_seq == '[4l':
                     # Replace Mode (IRM)
                     pass
+                elif esc_seq == '[=7l':
+                    logger.debug('Turning line wrap off')
+                    self.line_wrap = False
             elif esc_seq[-1] == 't':
                 # Xterm window settings
                 pass
@@ -360,7 +361,7 @@ class TerminalCapture:
                 self.col = self.saved_col
         elif esc_seq == 'M':
             # Moves cursor up one line in same column. If cursor is at top margin, screen performs a scroll-down.
-            if self.row != 0:
+            if self.row > 0:
                 self.row -= 1
         elif esc_seq == 'D':
             # Moves cursor up down line in same column. If cursor is at bottom margin, screen performs a scroll-up.
@@ -423,4 +424,24 @@ class TerminalCapture:
         for col in range(self.screen_cols):
             line.append(self._new_char())
         return line
+
+    def _set_row(self, val, base = 0):
+        val -= base
+        if val < 0:
+            val = 0
+        elif val > self.screen_rows - 1:
+            val = self.screen_rows - 1
+        self.row = val
+
+    def _set_col(self, val, base = 0):
+        val -= base
+        if val < 0:
+            val = 0
+        elif val > self.screen_cols - 1:
+            val = self.screen_cols - 1
+        self.col = val
+
+    def _set_pos(self, row, col, base = 0):
+        self._set_row(row, base)
+        self._set_col(col, base)
 
