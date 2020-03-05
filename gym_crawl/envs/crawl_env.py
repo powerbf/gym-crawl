@@ -215,9 +215,13 @@ class CrawlEnv(gym.Env):
 
     def _update_game_state(self):
         display = self.frame.to_string()
+
+        # check if we are on main game screen
+        if not re.search(r'Health:.+Magic:.+AC:.+Str:', display.replace('\n', '')):
+            return
         
         # update hp/max_hp
-        m = re.search(r'Health\: *(\d+)\/(\d+)', display)
+        m = re.search(r'Health: *(\d+)\/(\d+)', display)
         if m:
             hp = int(m.group(1))
             prev_hp = self.game_state['HP']
