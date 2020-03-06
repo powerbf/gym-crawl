@@ -72,6 +72,7 @@ class CrawlEnv(gym.Env):
         
         self._init_game_state()
         self.reward = 0
+        self.score = 0
 
         # timing
         self.max_read_time = 0.0
@@ -95,6 +96,7 @@ class CrawlEnv(gym.Env):
         self.ready_counter = 0
         self.on_main_screen = False
         self._init_game_state()
+        self.score = 0
 
         self.max_read_time = 0.0
         self.max_ready_time = 0.0
@@ -160,6 +162,8 @@ class CrawlEnv(gym.Env):
         else:
             self.stuck_steps = 0
 
+        self.score += self.reward
+
         done = self.error or self.game_state['finished']
         if not done and self.stuck_steps >= 1000:
             logger.info('Stuck for 1000 steps. Giving up. Screen dump:\n' + self.frame.to_string())
@@ -181,7 +185,7 @@ class CrawlEnv(gym.Env):
     def _render_to_screen(self, mode='human'):
         if self.frame is not None:
             self.frame.render(1, 1)
-            print('FRAME_COUNT: {}    '.format(self.frame_count))
+            print('Step: {:<6d}  Action: {:<5}  Reward: {:<7d}  Cumulative score: {:<10d}'.format(self.steps, self.last_sent, self.reward, self.score))
 
     def render(self, mode='human'):
         self._render_to_screen(mode)

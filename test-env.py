@@ -51,7 +51,6 @@ for episode in range(5):
         if render:
             env.render()
             keys = tc.make_printable(env._action_to_keys(action))
-            print('Step: {:<6d}  Action: {:<5}  Reward: {:<7d}  Cumulative score: {:<10d}'.format(steps, keys, reward, score))
             print('Started: ' + str(info['started']) + ', Finished: ' + str(info['finished']) + ', Won: ' + str(info['won']) + '       ')
             print('Health: ' + str(info['HP']) + '/' + str(info['Max HP']) + '  Magic: ' + str(info['MP']) + '/' + str(info['Max MP']) + '      ')
             print('AC: {0:2}  Str: {1:2}'.format(info['AC'], info['Str']))
