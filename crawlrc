@@ -1,8 +1,25 @@
+
+# no delay on screen updates
+rest_delay=-1
+travel_delay=-1
+explore_delay=-1
+tile_runrest_rate=-1
+
 # disable more prompts because we can't handle them properly
 show_more = false
 : crawl.enable_more(false)
 
+# butcher corpses and eat 'em
+auto_butcher=true
+confirm_butcher=never
+auto_eat_chunks=true
+
+# wait for both MP and HP to regenerate when resting (5)
+rest_wait_both = true
+
 {
+local ready_counter = 0
+
 ---------------------------------------------------------------------
 -- Callback: Called when need to choose stat to increase on level up
 ---------------------------------------------------------------------
@@ -27,4 +44,13 @@ function c_answer_prompt(prompt)
         return false
     end
 end
+
+---------------------------------------------------------------------
+-- Callback: Called when ready for next command
+---------------------------------------------------------------------
+function ready()
+    ready_counter = ready_counter + 1
+    crawl.mpr("Ready (" .. ready_counter .. ")")
+end
+
 }

@@ -60,14 +60,18 @@ class CrawlEnv(gym.Env):
         self.stuck_steps = 0
         self.error = False
         self.last_sent = ''
+        self.ready_counter = 0
+        self.ready = False
+        self.on_main_screen = False
         
         self._init_game_state()
         self.reward = 0
 
         # timing
         self.max_read_time = 0.0
+        self.max_ready_time = 0.0
         self.read_timeout = 0.01
-        self.long_running_read_timeout = 1.0
+        self.long_running_read_timeout = 5.0
 
     def __del__(self):
         #self.close() # logging will throw an exception at this point
@@ -82,10 +86,14 @@ class CrawlEnv(gym.Env):
         self.steps = 0
         self.stuck_steps = 0
         self.error = False
+        self.ready_counter = 0
+        self.on_main_screen = False
         self._init_game_state()
 
         self.max_read_time = 0.0
+        self.max_ready_time = 0.0
         self.read_timeout = 0.01
+        self.ready = False
 
         crawl_bin_dir = self.crawl_path + '/bin'
         crawl_saves_dir = self.crawl_path + '/bin/saves'
@@ -103,6 +111,7 @@ class CrawlEnv(gym.Env):
         thread.start()
 
         self._send_chars('c') # choose axe
+        time.sleep(1.0)
 
         self._read_frame();            
 
@@ -180,37 +189,55 @@ class CrawlEnv(gym.Env):
             return data_chunk
         
     def _read_frame(self):
+        logger.debug("_read_frame start: self.ready={}, screen:\n".format(self.ready) + self.frame.to_string())
+
         self.reward = 0
         data = ''
         got_data = False
         done = False
+        ready = False
+        prev_ready = self.ready
         loop_count = 0
+        chars = tc.make_printable(self.last_sent)
 
         long_running_action = False
         read_timeout = self.read_timeout
-        if self.last_sent in self.LONG_RUNNING_ACTIONS:
+        if self.on_main_screen and prev_ready and self.last_sent in self.LONG_RUNNING_ACTIONS:
             long_running_action = True
             read_timeout = self.long_running_read_timeout
-            chars = tc.make_printable(self.last_sent)
             logger.debug("Step {}: Starting long running operation: {}".format(self.steps, chars))
 
         read_time = 0.0
+        ready_time = None
         start_time = time.perf_counter()
         while not done:
             loop_count += 1
             elapsed_time = (time.perf_counter() - start_time)
-            if elapsed_time >= read_timeout:
-                timeout = 0.0
+            if elapsed_time >= read_timeout - 0.001:
+                timeout = 0.001
             else:
                 timeout = read_timeout - elapsed_time
             data_chunk = self._read_data_chunk(timeout)
             if data_chunk is None:
-                done = True
+                if elapsed_time >= read_timeout:
+                    if long_running_action:
+                        logger.warn("Step {}: Timeout on action '{}': {:.3f} seconds. Screen dump:\n".format(self.steps, chars, elapsed_time) + self.frame.to_string())
+                    done = True
             else:
                 read_time = (time.perf_counter() - start_time)
                 logger.debug('Got {} bytes of data'.format(len(data_chunk)))
                 data += data_chunk
                 got_data = True
+                self._process_data(data_chunk)
+                # check for ready message
+                m = re.search(r'Ready \((\d+)\)', data_chunk)
+                if m and m.group(1):
+                    ready_counter = int(m.group(1))
+                    if ready_counter > self.ready_counter:
+                        self.ready_counter = ready_counter
+                        ready_time = read_time
+                        ready = True
+                        done = True
                 # handle prompts, so we don't get stuck
                 if  '--more--' in data_chunk:
                     logger.info('Detected --more-- prompt')
@@ -225,28 +252,34 @@ class CrawlEnv(gym.Env):
                     self._send_chars(ESC)
         if got_data:
             logger.debug('read_loop_count={}'.format(loop_count))
-            if read_time > self.max_read_time and self.steps > 5:
-                chars = tc.make_printable(self.last_sent)
-                if long_running_action:
-                    if read_time > 0.3:
-                        logger.info("Step {}: Long running operation (expected): {:.3f} seconds, action={}".format(self.steps, read_time, chars))
-                else:
-                    # sanity check
-                    if read_time > 0.210:
-                        self.max_read_time = 0.200
-                        logger.warn("Step {}: Unexpected long running operation: {:.3f} seconds, action={}".format(self.steps, read_time, chars))
+            if self.steps > 5:
+                if read_time > self.max_read_time:
+                    chars = tc.make_printable(self.last_sent)
+                    if long_running_action:
+                        if read_time > 0.3:
+                            logger.info("Step {}: Long running operation (expected): {:.3f} seconds, action={}".format(self.steps, read_time, chars))
                     else:
-                        self.max_read_time = read_time
-            if self.max_read_time > 0.95 * self.read_timeout:
-                self.read_timeout = self.max_read_time * 1.2
-                logger.info("Step {}: Adjusted read timeout to {:.3f} seconds".format(self.steps, self.read_timeout))
+                        # sanity check
+                        if read_time > 0.210:
+                            self.max_read_time = 0.200
+                            logger.warn("Step {}: Unexpected long running operation: {:.3f} seconds, action={}".format(self.steps, read_time, chars))
+                        else:
+                            self.max_read_time = read_time
+
+                if ready_time is not None and ready_time > self.max_ready_time:
+                    self.max_ready_time = ready_time
+                    logger.info("Step {}: Max ready time: {:.3f} seconds".format(self.steps, self.max_ready_time))
+
+                if self.max_read_time > 0.95 * self.read_timeout:
+                    self.read_timeout = self.max_read_time * 1.2
+                    logger.info("Step {}: Adjusted read timeout to {:.3f} seconds".format(self.steps, self.read_timeout))
             self.frame_count += 1
-            self._process_data(data)
             self._update_game_state()
             self.stuck_steps = 0
         else:
             self.stuck_steps += 1
             time.sleep(0.001)
+        self.ready = ready
 
     def _process_data(self, data):
         # capture screen update
@@ -278,7 +311,10 @@ class CrawlEnv(gym.Env):
         display = self.frame.to_string()
 
         # check if we are on main game screen
-        if not re.search(r'Health:.+Magic:.+AC:.+Str:', display.replace('\n', '')):
+        if re.search(r'Health:.+Magic:.+AC:.+Str:', display.replace('\n', '')):
+            self.on_main_screen = True
+        else:
+            self.on_main_screen = False
             return
         
         # update hp/max_hp
