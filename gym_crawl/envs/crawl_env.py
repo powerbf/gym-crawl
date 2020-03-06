@@ -314,13 +314,17 @@ class CrawlEnv(gym.Env):
                 logger.debug('Reward for leaving without orb: -1e6')
                 self.reward = -1000000
         elif 'You die' in data:
+            logger.info("Step {}: Died".format(self.steps))
             self.game_state['finished'] = True
 
         if self.game_state['finished']:
             return
 
-        if 'You pick up the Orb of Zot' in data:
-            self.game_state['Has Orb'] = True
+        if not self.game_state['Has Orb']:
+            if 'You pick up the Orb of Zot' in data:
+                logger.info("Step {}: Picked up the Orb".format(self.steps))
+                seld.reward += 10000
+                self.game_state['Has Orb'] = True
 
     def _update_game_state(self):
         display = self.frame.to_string()
