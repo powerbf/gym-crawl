@@ -121,7 +121,13 @@ class CrawlEnv(gym.Env):
         ready = False
         weapon_chosen = False
         game_started = False
+        loop_count = 0
         while not ready:
+            loop_count += 1
+            if loop_count >= 30:
+                logger.error("Failed to start episode. Screen dump:" + self.frame.to_string())
+                self.error = True
+                break
             self._read_frame();
             screen_contents = self.frame.to_string()
             if game_started:
@@ -133,11 +139,14 @@ class CrawlEnv(gym.Env):
                 self._send_chars('c') # choose axe
                 weapon_chosen = True
 
-        return self.frame, self.reward, self.game_state['finished'], self.game_state
+        done = (self.game_state['finished'] or self.error)
+        return self.frame, self.reward, done, self.game_state
 
     def step(self, action):
         self.steps += 1
         logger.debug("Step {} start: self.ready={}, screen:\n".format(self.steps, self.ready) + self.frame.to_string())
+
+        prev_time = self.game_state['Time']
 
         # perform action
         keys = self._action_to_keys(action)
@@ -146,12 +155,17 @@ class CrawlEnv(gym.Env):
         if not self.error:
             self._read_frame();
 
+        if self.game_state['Time'] == prev_time:
+            self.stuck_steps += 1
+        else:
+            self.stuck_steps = 0
+
         done = self.error or self.game_state['finished']
         if not done and self.stuck_steps >= 1000:
             logger.info('Stuck for 1000 steps. Giving up. Screen dump:\n' + self.frame.to_string())
             done = True
 
-        if self.steps % 1000 == 0:
+        if self.steps % 100 == 0:
             logger.info('Step {}: Game Time={}'.format(self.steps, self.game_state['Time']))
 
         return self.frame, self.reward, done, self.game_state
@@ -294,38 +308,24 @@ class CrawlEnv(gym.Env):
                     logger.debug('Detected inscriptions prompt')
                     self._send_chars(ESC)
                 elif "Drop what? 0/52 slots" in data_chunk:
-                    # This can alos crash crawl if too many characters are sent
+                    # This can also crash crawl if too many characters are sent
                     logger.debug('Detected drop prompt for empty inventory')
                     self._send_chars(ESC)
         if got_data:
             logger.debug('read_loop_count={}'.format(loop_count))
-            if self.steps > 5:
+            if self.steps >= 1 and not long_running_action:
                 if read_time > self.max_read_time:
-                    chars = tc.make_printable(self.last_sent)
-                    if long_running_action:
-                        if read_time > 0.3:
-                            logger.info("Step {}: Long running operation (expected): {:.3f} seconds, action={}".format(self.steps, read_time, chars))
-                    else:
-                        # sanity check
-                        if read_time > 0.210:
-                            self.max_read_time = 0.200
-                            logger.warn("Step {}: Unexpected long running operation: {:.3f} seconds, action={}".format(self.steps, read_time, chars))
-                        else:
-                            self.max_read_time = read_time
-
+                    self.max_read_time = read_time
+                    action = tc.make_printable(self.last_sent)
+                    logger.info("Step {}: Max redraw time: {:.3f} seconds, action={}".format(self.steps, read_time, action))
                 if ready_time is not None and ready_time > self.max_ready_time:
                     self.max_ready_time = ready_time
-                    logger.info("Step {}: Max ready time: {:.3f} seconds".format(self.steps, self.max_ready_time))
+                    action = tc.make_printable(self.last_sent)
+                    logger.info("Step {}: Max known ready time: {:.3f} seconds, action={}".format(self.steps, self.max_ready_time, action))
 
-                if self.max_read_time > self.max_read_time:
-                    logger.info("Step {}: New max read time: {:.3f} seconds, command=".format(self.steps, self.read_time, chars))
             self.frame_count += 1
             self._process_data(data)
             self._update_game_state()
-            self.stuck_steps = 0
-        else:
-            self.stuck_steps += 1
-            time.sleep(0.001)
         self.ready = ready
 
     def _process_data(self, data):
@@ -473,7 +473,6 @@ class CrawlEnv(gym.Env):
             else:
                 logger.debug('Reward for not starting: 0')
                 self.reward = 0
-                self.stuck_steps += 1
 
     def _init_game_state(self):
         state = {}
