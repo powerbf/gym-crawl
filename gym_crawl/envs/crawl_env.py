@@ -244,9 +244,8 @@ class CrawlEnv(gym.Env):
                 logger.debug('Got {} bytes of data'.format(len(data_chunk)))
                 data += data_chunk
                 got_data = True
-                self._process_data(data_chunk)
                 # check for ready message
-                m = re.search(r'Ready \((\d+)\)', data_chunk)
+                m = re.search(r'Ready \((\d+)\)', data)
                 if m and m.group(1):
                     ready_counter = int(m.group(1))
                     if ready_counter > self.ready_counter:
@@ -289,6 +288,7 @@ class CrawlEnv(gym.Env):
                 if self.max_read_time > self.max_read_time:
                     logger.info("Step {}: New max read time: {:.3f} seconds, command=".format(self.steps, self.read_time, chars))
             self.frame_count += 1
+            self._process_data(data)
             self._update_game_state()
             self.stuck_steps = 0
         else:
