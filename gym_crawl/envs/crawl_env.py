@@ -34,15 +34,16 @@ class CrawlEnv(gym.Env):
     SCREEN_COLS = 80
     SCREEN_ROWS = 24
 
+    LONG_RUNNING_ACTIONS = 'o5'
+
     # Essential commands
-    ACTION_KEYS="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,<>';" + CTRL_X + ESC
-    # Auto actions
-    ACTION_KEYS += '5o\t'
+    ACTION_KEYS="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,<>';\t" + CTRL_X + ESC
+    # Long-running actions
+    ACTION_KEYS += LONG_RUNNING_ACTIONS
     # Non-essential info commands
-    ACTION_KEYS += '@$%^[}"' + CTRL_O + CTRL_P
+    ACTION_KEYS += '@$%^[}"' + CTRL_O
     # Some other useful commands
     #ACTION_KEYS += '\\' + CTRL_A + CTRL_E
-
 
     def __init__(self):
         logger.info('__init__')
@@ -58,9 +59,15 @@ class CrawlEnv(gym.Env):
         self.steps = 0
         self.stuck_steps = 0
         self.error = False
+        self.last_sent = ''
         
         self._init_game_state()
         self.reward = 0
+
+        # timing
+        self.max_read_time = 0.0
+        self.read_timeout = 0.01
+        self.long_running_read_timeout = 1.0
 
     def __del__(self):
         #self.close() # logging will throw an exception at this point
@@ -76,6 +83,9 @@ class CrawlEnv(gym.Env):
         self.stuck_steps = 0
         self.error = False
         self._init_game_state()
+
+        self.max_read_time = 0.0
+        self.read_timeout = 0.01
 
         crawl_bin_dir = self.crawl_path + '/bin'
         crawl_saves_dir = self.crawl_path + '/bin/saves'
@@ -112,7 +122,7 @@ class CrawlEnv(gym.Env):
             done = True
 
         if self.steps % 1000 == 0:
-            logger.info('Step {}: Time={}'.format(self.steps, self.game_state['Time']))
+            logger.info('Step {}: Game Time={}'.format(self.steps, self.game_state['Time']))
 
         return self.frame, self.reward, done, self.game_state
 
@@ -151,6 +161,7 @@ class CrawlEnv(gym.Env):
         """ Send characters to the crawl process
         """
         logger.debug('Sending: ' + tc.make_printable(chars))
+        self.last_sent = chars
         try:
             self.process.stdin.write(chars)
             self.process.stdin.flush()
@@ -159,34 +170,78 @@ class CrawlEnv(gym.Env):
             logger.error("I think I overran crawl's input buffer. This is where I was:\n" + self.frame.to_string())
             self.error = True
 
+    def _read_data_chunk(self, read_timeout):
+        try:
+            #data_chunk = self.queue.get_nowait()
+            data_chunk = self.queue.get(timeout=read_timeout)
+        except Empty:
+            return None
+        else:
+            return data_chunk
+        
     def _read_frame(self):
         self.reward = 0
+        data = ''
         got_data = False
         done = False
+        loop_count = 0
+
+        long_running_action = False
+        read_timeout = self.read_timeout
+        if self.last_sent in self.LONG_RUNNING_ACTIONS:
+            long_running_action = True
+            read_timeout = self.long_running_read_timeout
+            chars = tc.make_printable(self.last_sent)
+            logger.debug("Step {}: Starting long running operation: {}".format(self.steps, chars))
+
+        read_time = 0.0
+        start_time = time.perf_counter()
         while not done:
-            try:
-                #data = self.queue.get_nowait()
-                data = self.queue.get(timeout=.001)
-            except Empty:
+            loop_count += 1
+            elapsed_time = (time.perf_counter() - start_time)
+            if elapsed_time >= read_timeout:
+                timeout = 0.0
+            else:
+                timeout = read_timeout - elapsed_time
+            data_chunk = self._read_data_chunk(timeout)
+            if data_chunk is None:
                 done = True
             else:
-                logger.debug('Got {} bytes of data'.format(len(data)))
+                read_time = (time.perf_counter() - start_time)
+                logger.debug('Got {} bytes of data'.format(len(data_chunk)))
+                data += data_chunk
                 got_data = True
-                self._process_data(data)
                 # handle prompts, so we don't get stuck
-                if  '--more--' in data:
+                if  '--more--' in data_chunk:
                     logger.info('Detected --more-- prompt')
                     self._send_chars(' ')
-                elif "Inscribe with what?" in data or "Replace inscription with what?" in data:
+                elif "Inscribe with what?" in data_chunk or "Replace inscription with what?" in data_chunk:
                     # Nip this in the bud because it can crash crawl if too many characters are sent
                     logger.debug('Detected inscriptions prompt')
                     self._send_chars(ESC)
-                elif "Drop what? 0/52 slots" in data:
+                elif "Drop what? 0/52 slots" in data_chunk:
                     # This can alos crash crawl if too many characters are sent
                     logger.debug('Detected drop prompt for empty inventory')
                     self._send_chars(ESC)
         if got_data:
+            logger.debug('read_loop_count={}'.format(loop_count))
+            if read_time > self.max_read_time and self.steps > 5:
+                chars = tc.make_printable(self.last_sent)
+                if long_running_action:
+                    if read_time > 0.3:
+                        logger.info("Step {}: Long running operation (expected): {:.3f} seconds, action={}".format(self.steps, read_time, chars))
+                else:
+                    # sanity check
+                    if read_time > 0.210:
+                        self.max_read_time = 0.200
+                        logger.warn("Step {}: Unexpected long running operation: {:.3f} seconds, action={}".format(self.steps, read_time, chars))
+                    else:
+                        self.max_read_time = read_time
+            if self.max_read_time > 0.95 * self.read_timeout:
+                self.read_timeout = self.max_read_time * 1.2
+                logger.info("Step {}: Adjusted read timeout to {:.3f} seconds".format(self.steps, self.read_timeout))
             self.frame_count += 1
+            self._process_data(data)
             self._update_game_state()
             self.stuck_steps = 0
         else:
