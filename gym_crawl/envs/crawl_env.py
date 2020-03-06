@@ -22,10 +22,16 @@ CTRL_X = '\x18'
 
 logger = logging.getLogger('crawl-env')
 
-def enqueue_output(out, queue):
+def enqueue_output_old(out, queue):
     for line in iter(out.readline, b''):
         queue.put(line)
     out.close()
+
+def enqueue_output(out, queue):
+    while not out.closed:
+        out.flush()
+        data = out.read1(1024).decode('ascii', errors='ignore')
+        queue.put(data)
 
 class CrawlEnv(gym.Env):
     metadata = {'render.modes': ['human']}
@@ -70,7 +76,7 @@ class CrawlEnv(gym.Env):
         # timing
         self.max_read_time = 0.0
         self.max_ready_time = 0.0
-        self.read_timeout = 0.01
+        self.read_timeout = 0.1
         self.long_running_read_timeout = 5.0
 
     def __del__(self):
@@ -92,7 +98,6 @@ class CrawlEnv(gym.Env):
 
         self.max_read_time = 0.0
         self.max_ready_time = 0.0
-        self.read_timeout = 0.01
         self.ready = False
 
         crawl_bin_dir = self.crawl_path + '/bin'
@@ -105,25 +110,41 @@ class CrawlEnv(gym.Env):
         cmd = [crawl_bin_dir + '/crawl', '-name', self.character_name, '-species', 'Minotaur', '-background', 'Berserker']
         self.process = Popen(cmd, cwd=crawl_bin_dir, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True)
 
+        # detach process stdout from buffer
+        self.process.stdout = self.process.stdout.detach()
+
         self.queue = Queue()
         thread = Thread(target=enqueue_output, args=(self.process.stdout, self.queue))
         thread.daemon = True # thread dies with the program
         thread.start()
-
-        self._send_chars('c') # choose axe
-        time.sleep(1.0)
-
-        self._read_frame();            
+        
+        ready = False
+        weapon_chosen = False
+        game_started = False
+        while not ready:
+            self._read_frame();
+            screen_contents = self.frame.to_string()
+            if game_started:
+                if 'Ready (1)' in screen_contents:
+                    ready = True
+            elif 'Found a staircase leading out of the dungeon' in screen_contents:
+                game_started = True
+            elif not weapon_chosen and 'You have a choice of weapons' in screen_contents:  
+                self._send_chars('c') # choose axe
+                weapon_chosen = True
 
         return self.frame, self.reward, self.game_state['finished'], self.game_state
 
     def step(self, action):
-        # perform action
         self.steps += 1
+        logger.debug("Step {} start: self.ready={}, screen:\n".format(self.steps, self.ready) + self.frame.to_string())
+
+        # perform action
         keys = self._action_to_keys(action)
         self._send_chars(keys)
 
-        self._read_frame();
+        if not self.error:
+            self._read_frame();
 
         done = self.error or self.game_state['finished']
         if not done and self.stuck_steps >= 1000:
@@ -181,6 +202,7 @@ class CrawlEnv(gym.Env):
 
     def _read_data_chunk(self, read_timeout):
         try:
+            self.process.stdout.flush()
             #data_chunk = self.queue.get_nowait()
             data_chunk = self.queue.get(timeout=read_timeout)
         except Empty:
@@ -189,8 +211,6 @@ class CrawlEnv(gym.Env):
             return data_chunk
         
     def _read_frame(self):
-        logger.debug("_read_frame start: self.ready={}, screen:\n".format(self.ready) + self.frame.to_string())
-
         self.reward = 0
         data = ''
         got_data = False
@@ -212,12 +232,8 @@ class CrawlEnv(gym.Env):
         start_time = time.perf_counter()
         while not done:
             loop_count += 1
+            data_chunk = self._read_data_chunk(0.01)
             elapsed_time = (time.perf_counter() - start_time)
-            if elapsed_time >= read_timeout - 0.001:
-                timeout = 0.001
-            else:
-                timeout = read_timeout - elapsed_time
-            data_chunk = self._read_data_chunk(timeout)
             if data_chunk is None:
                 if elapsed_time >= read_timeout:
                     if long_running_action:
@@ -270,9 +286,8 @@ class CrawlEnv(gym.Env):
                     self.max_ready_time = ready_time
                     logger.info("Step {}: Max ready time: {:.3f} seconds".format(self.steps, self.max_ready_time))
 
-                if self.max_read_time > 0.95 * self.read_timeout:
-                    self.read_timeout = self.max_read_time * 1.2
-                    logger.info("Step {}: Adjusted read timeout to {:.3f} seconds".format(self.steps, self.read_timeout))
+                if self.max_read_time > self.max_read_time:
+                    logger.info("Step {}: New max read time: {:.3f} seconds, command=".format(self.steps, self.read_time, chars))
             self.frame_count += 1
             self._update_game_state()
             self.stuck_steps = 0
