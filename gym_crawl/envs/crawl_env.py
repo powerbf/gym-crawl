@@ -209,7 +209,43 @@ class CrawlEnv(gym.Env):
             return None
         else:
             return data_chunk
+    
+
+    def _is_ready(self, data):
+
+        # check for ready message from rc file ready() function
+        m = re.search(r'Ready \((\d+)\)', data)
+        if m and m.group(1):
+            ready_counter = int(m.group(1))
+            if ready_counter > self.ready_counter:
+                self.ready_counter = ready_counter
+                return True
+
+        # check for known end of screen strings
         
+        # abilities screen
+        if "to toggle between ability selection and description." in data:
+            return True
+
+        # religion screen
+        if "Powers|Wrath" in data:
+            return True
+
+        # skills screen
+        if "costs|targets" in data:
+            return True
+
+        # spells (M) screen
+        if "Describe|Hide|Show" in data:
+            return True
+
+        # cast spell (z/Z) screen
+        if "to toggle spell view." in data:
+            return True
+
+        return False
+
+
     def _read_frame(self):
         self.reward = 0
         data = ''
@@ -244,15 +280,11 @@ class CrawlEnv(gym.Env):
                 logger.debug('Got {} bytes of data'.format(len(data_chunk)))
                 data += data_chunk
                 got_data = True
-                # check for ready message
-                m = re.search(r'Ready \((\d+)\)', data)
-                if m and m.group(1):
-                    ready_counter = int(m.group(1))
-                    if ready_counter > self.ready_counter:
-                        self.ready_counter = ready_counter
-                        ready_time = read_time
-                        ready = True
-                        done = True
+                # check for known ready conditions
+                if self._is_ready(data):
+                    ready_time = read_time
+                    ready = True
+                    done = True
                 # handle prompts, so we don't get stuck
                 if  '--more--' in data_chunk:
                     logger.info('Detected --more-- prompt')
