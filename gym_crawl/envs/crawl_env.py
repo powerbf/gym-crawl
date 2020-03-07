@@ -269,6 +269,10 @@ class CrawlEnv(gym.Env):
         if "to toggle spell view." in data:
             return True
 
+        # monster description screen when monster has spell
+        if "shown in red if you are in range." in data:
+            return True
+
         return False
 
 
