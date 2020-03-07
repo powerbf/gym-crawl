@@ -20,6 +20,18 @@ CTRL_P = '\x10'
 CTRL_Q = '\x11'
 CTRL_X = '\x18'
 
+LONG_RUNNING_ACTIONS = 'o5'
+
+# Essential commands
+ACTION_KEYS="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,<>';\t" + CTRL_X + ESC
+# Long-running actions
+ACTION_KEYS += LONG_RUNNING_ACTIONS
+# Non-essential info commands
+ACTION_KEYS += '@$%^[}"' + CTRL_O
+# Some other useful commands
+#ACTION_KEYS += '\\' + CTRL_A + CTRL_E
+
+
 logger = logging.getLogger('crawl-env')
 
 def enqueue_output_old(out, queue):
@@ -40,26 +52,16 @@ class CrawlEnv(gym.Env):
     SCREEN_COLS = 80
     SCREEN_ROWS = 24
 
-    LONG_RUNNING_ACTIONS = 'o5'
-
-    # Essential commands
-    ACTION_KEYS="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,<>';\t" + CTRL_X + ESC
-    # Long-running actions
-    ACTION_KEYS += LONG_RUNNING_ACTIONS
-    # Non-essential info commands
-    ACTION_KEYS += '@$%^[}"' + CTRL_O
-    # Some other useful commands
-    #ACTION_KEYS += '\\' + CTRL_A + CTRL_E
-
     def __init__(self):
         logger.info('__init__')
-        self.action_space = spaces.Discrete(len(self.ACTION_KEYS)) 
+        self.action_space = spaces.Discrete(len(ACTION_KEYS)) 
         self.process = None
         self.queue = None
         self.render_file = None
         self.crawl_path = '/home/brian/crawl/0.24-ascii'
         self.character_name = 'Lerny'
 
+        self.episode = 0
         self.frame = None
         self.frame_count = 0
         self.steps = 0
@@ -84,9 +86,14 @@ class CrawlEnv(gym.Env):
         #self.close() # logging will throw an exception at this point
         pass
 
+    def getActionKeys(self):
+        return ACTION_KEYS
+
     def reset(self):
         logger.info('reset')
         self.close()
+
+        self.episode += 1
 
         self.frame = tc.TerminalCapture()
         self.frame_count = 0
@@ -185,7 +192,8 @@ class CrawlEnv(gym.Env):
     def _render_to_screen(self, mode='human'):
         if self.frame is not None:
             self.frame.render(1, 1)
-            print('Step: {:<6d}  Action: {:<5}  Reward: {:<7d}  Cumulative score: {:<10d}'.format(self.steps, self.last_sent, self.reward, self.score))
+            action = tc.make_printable(self.last_sent)
+            print('Episode: {}  Step: {:<6d}  Action: {:<5}  Reward: {:<7d}  Cumulative score: {:<10d}'.format(self.episode, self.steps, action, self.reward, self.score))
 
     def render(self, mode='human'):
         self._render_to_screen(mode)
@@ -202,7 +210,7 @@ class CrawlEnv(gym.Env):
             self.render_file.close()
   
     def _action_to_keys(self, action):
-        keys = self.ACTION_KEYS[action]
+        keys = ACTION_KEYS[action]
         return keys
 
     def _send_chars(self, chars):
@@ -276,7 +284,7 @@ class CrawlEnv(gym.Env):
 
         long_running_action = False
         read_timeout = self.read_timeout
-        if self.on_main_screen and prev_ready and self.last_sent in self.LONG_RUNNING_ACTIONS:
+        if self.on_main_screen and prev_ready and self.last_sent in LONG_RUNNING_ACTIONS:
             long_running_action = True
             read_timeout = self.long_running_read_timeout
             logger.debug("Step {}: Starting long running operation: {}".format(self.steps, chars))
