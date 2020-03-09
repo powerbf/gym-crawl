@@ -1,9 +1,3 @@
-DCSS SCREEN
-
-Map section is in top left and is 17 rows by 33 columns
-Status section starts on row 1 column 38 (using 1-based indexes) and is 12(?) rows
-Messages section starts on row 18 and is 6 rows long
-
 TERMINAL/CURSES INFO
 
 https://en.wikipedia.org/wiki/ANSI_escape_code
@@ -15,3 +9,31 @@ http://www.asciitable.com/
 https://www.xfree86.org/current/ctlseqs.html
 https://gist.github.com/justinmk/a5102f9a0c1810437885a04a07ef0a91
 
+DCSS SCREEN
+
+Map section is in top left and is 17 rows by 33 columns
+Status section starts on row 1 column 38 (using 1-based indexes) and is 12(?) rows
+Messages section starts on row 18 and is 6 rows long
+
+How to tell if screen is finished drawing
+
+a - ability screen
+Press '!' or '?' to toggle between ability selection and description.
+(Screen doesn't open if you have no abilities)
+
+^ - religion screen
+"Powers|Wrath"
+(For atheists, screen doesn't open)
+
+m - skills screen
+"costs|targets"
+
+M - spells
+Describe|Hide|Show
+(Doesn't open if you ave no spells)
+
+Z/z - cast spell
+to toggle spell view.
+
+inventory/drop/wear/wield/take off/put on/remove
+(difficult to tell)

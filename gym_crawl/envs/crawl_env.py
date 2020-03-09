@@ -13,6 +13,7 @@ import gym_crawl.terminal_capture as tc
 
 # Keys
 ESC = tc.ESC
+ENTER = '\x0D'
 CTRL_A = '\x01'
 CTRL_E = '\x05'
 CTRL_O = '\x1F'
@@ -23,13 +24,13 @@ CTRL_X = '\x18'
 LONG_RUNNING_ACTIONS = 'o5'
 
 # Essential commands
-ACTION_KEYS="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,<>';\t" + CTRL_X + ESC
+ACTION_KEYS="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.,<>\t" + ESC + ENTER
 # Long-running actions
 ACTION_KEYS += LONG_RUNNING_ACTIONS
 # Non-essential info commands
-ACTION_KEYS += '@$%^[}"' + CTRL_O
+#ACTION_KEYS += ';@$%^[}"' + CTRL_O + CTRL_X
 # Some other useful commands
-#ACTION_KEYS += '\\' + CTRL_A + CTRL_E
+#ACTION_KEYS += '\\\'' + CTRL_A + CTRL_E
 
 
 logger = logging.getLogger('crawl-env')
@@ -239,6 +240,9 @@ class CrawlEnv(gym.Env):
 
     def _is_ready(self, data):
 
+        # remove newlines because they mess with regular expression matching
+        data = data.replace('\n', '')
+
         # check for ready message from rc file ready() function
         m = re.search(r'Ready \((\d+)\)', data)
         if m and m.group(1):
@@ -267,6 +271,10 @@ class CrawlEnv(gym.Env):
 
         # cast spell (z/Z) screen
         if "to toggle spell view." in data:
+            return True
+
+        # character description screen
+        if re.search(r'HPRegen .*MPRegen .*@: .*A: ', data):
             return True
 
         # monster description screen when monster has spell
