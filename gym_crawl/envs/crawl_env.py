@@ -42,11 +42,15 @@ def enqueue_output_old(out, queue):
     out.close()
 
 def enqueue_output(out, queue):
-    while not out.closed:
-        out.flush()
-        data = out.read1(1024).decode('ascii', errors='ignore')
-        queue.put(data)
-    logger.debug("enqueue_ouput exiting")
+    try:
+        while not out.closed:
+            out.flush()
+            data = out.read1(1024).decode('ascii', errors='ignore')
+            queue.put(data)
+    except:
+        pass
+    finally:
+        logger.debug("enqueue_ouput exiting")
 
 class CrawlEnv(gym.Env):
     metadata = {'render.modes': ['human']}
