@@ -2,7 +2,8 @@ import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
 from subprocess import Popen, PIPE
-from threading  import Thread
+from threading import Thread
+import threading 
 from queue import Queue, Empty
 import logging
 import os
@@ -45,6 +46,7 @@ def enqueue_output(out, queue):
         out.flush()
         data = out.read1(1024).decode('ascii', errors='ignore')
         queue.put(data)
+    logger.debug("enqueue_ouput exiting")
 
 class CrawlEnv(gym.Env):
     metadata = {'render.modes': ['human']}
@@ -207,8 +209,11 @@ class CrawlEnv(gym.Env):
             except:
                 logger.info('Killing process')
                 self.process.kill() # die horribly
+        if self.process is not None:
+            self.process.stdout.close() # cause reading thread to end
         if self.render_file is not None:
             self.render_file.close()
+        logger.debug("Thread count: {}".format(threading.active_count()))
   
     def _action_to_keys(self, action):
         keys = ACTION_KEYS[action]
