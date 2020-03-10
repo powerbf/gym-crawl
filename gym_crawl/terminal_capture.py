@@ -100,6 +100,8 @@ class TerminalCapture:
         self.curr_background_color = BG_COLOR_BLACK
         self.bold = False
         self.line_wrap = False
+        self.scroll_region_start = 0
+        self.scroll_region_end = self.screen_rows - 1
         self._init_screen()
 
 
@@ -228,8 +230,15 @@ class TerminalCapture:
                     self._handle_escape_sequence(esc_seq)
      
                 elif data[i] == '\n':
-                    self._set_pos(self.row + 1, 0)
-                    logger.debug('\\n: Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
+                    # Moves cursor down one line in same column. If cursor is at bottom margin, screen performs a scroll-up.
+                    if self.row < self.scroll_region_end:
+                        self.row += 1
+                    else:
+                        for row in range(self.scroll_region_start, self.scroll_region_end):
+                            self.screen[row] = self.screen[row+1]
+                        self.screen[self.scroll_region_end] = self._new_line()
+                        logger.debug('LF: Scrolled up region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
+                    logger.debug('LF: Cursor now at {:d},{:d}'.format(self.row+1, self.col+1))
                 elif data[i] == '\r':
                     self._set_col(0)
                     logger.debug('\\r: Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
@@ -252,6 +261,7 @@ class TerminalCapture:
             pass
         elif esc_seq[0] == '(' or esc_seq[0] == ')':
             # selecting character set
+            logger.debug('Select character set (ignored)')
             pass
         elif esc_seq[0] == '[':
             if esc_seq[-1] == 'A':
@@ -369,10 +379,22 @@ class TerminalCapture:
                         self.curr_background_color = num 
                     elif num >= BG_COLOR_BRIGHT_BLACK and num <= BG_COLOR_BRIGHT_WHITE:
                         self.curr_background_color = num 
-                    logger.debug('Font is now: {} on {}'.format(self.curr_foreground_color, self.curr_background_color) + (' bold' if self.bold else ''))
+                logger.debug('Font is now: {} on {}'.format(self.curr_foreground_color, self.curr_background_color) + (' bold' if self.bold else ''))
             elif esc_seq[-1] == 'r':
-                # TODO: set scroll region
-                logger.debug('Set scroll region (unhandled)')
+                # set scroll region
+                m = re.search(r'(\d*);(\d*)', esc_seq)
+                if m :
+                    # coords are 1-based, so we have to subtract one to convert to 0-based
+                    self.scroll_region_start = 0 if m.group(1) == '' else int(m.group(1))-1
+                    if self.scroll_region_start < 0:
+                        self.scroll_region_start = 0
+                    self.scroll_region_end = self.screen_rows-1 if m.group(2) == '' else int(m.group(2))-1
+                    if self.scroll_region_end > self.screen_rows-1:
+                        self.scroll_region_end = self.screen_rows-1
+                else:
+                    self.scroll_region_start = 0
+                    self.scroll_region_end = self.screen_rows-1
+                logger.debug('Set scroll region to {},{}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
                 pass
             elif esc_seq[-1] == 'h':
                 # Set mode
@@ -411,19 +433,34 @@ class TerminalCapture:
                 logger.debug('Restored cursor position {:d},{:d}'.format(self.row+1, self.col+1))
         elif esc_seq == 'M':
             # Moves cursor up one line in same column. If cursor is at top margin, screen performs a scroll-down.
-            if self.row > 0:
+            if self.row > self.scroll_region_start:
                 self.row -= 1
+            else:
+                for row in range(self.scroll_region_end, self.scroll_region_start, -1):
+                    self.screen[row] = self.screen[row-1]
+                self.screen[self.scroll_region_start] = self._new_line()
+                logger.debug('Scrolled down region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
             logger.debug('Move up with scroll: Cursor now at {:d},{:d}'.format(self.row+1, self.col+1))
         elif esc_seq == 'D':
-            # Moves cursor up down line in same column. If cursor is at bottom margin, screen performs a scroll-up.
-            if self.row < self.screen_rows - 1:
+            # Moves cursor down one line in same column. If cursor is at bottom margin, screen performs a scroll-up.
+            if self.row < self.scroll_region_end:
                 self.row += 1
+            else:
+                for row in range(self.scroll_region_start, self.scroll_region_end):
+                    self.screen[row] = self.screen[row+1]
+                self.screen[self.scroll_region_end] = self._new_line()
+                logger.debug('Scrolled up region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
             logger.debug('Move down with scroll: Cursor now at {:d},{:d}'.format(self.row+1, self.col+1))
         elif esc_seq == 'E':
             # Moves cursor to first position on next line. If cursor is at bottom margin, screen performs a scroll-up.
-            if self.row < self.screen_rows - 1:
-                self.row += 1
             self.col = 0
+            if self.row < self.scroll_region_end:
+                self.row += 1
+            else:
+                for row in range(self.scroll_region_start, self.scroll_region_end):
+                    self.screen[row] = self.screen[row+1]
+                self.screen[self.scroll_region_end] = self._new_line()
+                logger.debug('Scrolled up region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
             logger.debug('CRLF: Cursor now at {:d},{:d}'.format(self.row+1, self.col+1))
         elif esc_seq == '=':
             # Enter alternate keypad mode (numlock off?)
