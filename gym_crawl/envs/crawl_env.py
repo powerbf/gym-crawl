@@ -404,18 +404,10 @@ class CrawlEnv(gym.Env):
         # update hp/max_hp
         m = re.search(r'Health: *(\d+)\/(\d+)', display)
         if m:
-            hp = int(m.group(1))
-            prev_hp = self.game_state['HP']
-            if hp != prev_hp:
-                self.game_state['HP'] = hp
-
-            max_hp = int(m.group(2))
-            prev_max_hp = self.game_state['Max HP']
-            if max_hp != prev_max_hp:
-                if self.game_state['started']:
-                    logger.debug('Reward for increased max HP: {}'.format(max_hp - prev_max_hp))
-                    self.reward += (max_hp - prev_max_hp)
-                self.game_state['Max HP'] = max_hp
+            if m.group(1):
+                self.game_state['HP'] = int(m.group(1))
+            if m.group(2):
+                self.game_state['Max HP'] = int(m.group(2))
 
         # update mp/max_mp
         m = re.search(r'Magic: *(\d+)/(\d+)', display)
@@ -481,9 +473,6 @@ class CrawlEnv(gym.Env):
             prev_time = self.game_state['Time']
             if time > prev_time:
                 logger.debug('Time: ' + str(time))
-                # reward actions that advance time (i.e. legal moves)
-                logger.debug('Reward for time: +1')
-                self.reward += 1
                 self.game_state['Time'] = time
 
         # Update place
