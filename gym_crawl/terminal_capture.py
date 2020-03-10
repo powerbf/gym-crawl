@@ -9,6 +9,7 @@ import logging
 
 logger = logging.getLogger('term-capture')
 
+BS = chr(ascii.BS)
 ESC = chr(ascii.ESC)
 DEL = chr(ascii.DEL)
 
@@ -211,8 +212,14 @@ class TerminalCapture:
                     self._set_pos(self.row + 1, 0)
                 elif data[i] == '\r':
                     self._set_col(0)
+                elif data[i] == BS:
+                    # backspace just moves the cursor left
+                    self._set_col(self.col - 1)
 
             i += 1
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Screen:\n" + self.to_string())
 
     def _handle_escape_sequence(self, esc_seq):
         logger.debug('Handling escape sequence: ' + make_printable(esc_seq))
