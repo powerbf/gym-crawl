@@ -64,9 +64,7 @@ def make_printable(string):
     result = ''
     for ch in string:
         if ch < ' ':
-            if ch == ESC:
-                result += 'ESC'
-            elif ch == '\t':
+            if ch == '\t':
                 result += '\\t'
             elif ch == '\n':
                 result += '\\n'
@@ -81,6 +79,7 @@ def make_printable(string):
         else:
             o = ord(ch)
             result += "\\x%0.2x" % o
+    result = re.sub("(.{80})", "\\1\n", result, 0, re.DOTALL)
     return result
 
 
@@ -183,7 +182,7 @@ class TerminalCapture:
     def handle_output(self, data):
         # update our internal representation of the screen
         # this is tricky because the raw data contains ASCII control sequences
-        logger.debug('\nProcessing data:\n' + make_printable(data))
+        logger.debug('Processing data:\n' + make_printable(data))
         self.data = data
         i = 0
         string = ''
@@ -208,8 +207,8 @@ class TerminalCapture:
                     self._set_col(self.col + 1)
             else:
                 if logger.isEnabledFor(logging.DEBUG) and len(string) > 0:
-                    logger.debug('Placed string at {:d},{:d}: {}'.format(string_row+1, string_col+1, string))
-                    logger.debug('Cursor is now at {:d},{:d}'.format(self.row+1, self.col+1))
+                    logger.debug('"{}" placed at {:d},{:d}. Cursor now at {:d},{:d}'.format(
+                        string, string_row+1, string_col+1, self.row+1, self.col+1))
                     string = ''
             
                 if data[i] == ESC:
@@ -241,13 +240,13 @@ class TerminalCapture:
                     logger.debug('LF: Cursor now at {:d},{:d}'.format(self.row+1, self.col+1))
                 elif data[i] == '\r':
                     self._set_col(0)
-                    logger.debug('\\r: Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
+                    logger.debug('CR: Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
                 elif data[i] == BS:
                     # backspace just moves the cursor left
                     self._set_col(self.col - 1)
                     logger.debug('BS: Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
                 else:
-                    logger.debug("Unhandled character: " + make_printable(data[i]))
+                    logger.warn("Unhandled character: " + make_printable(data[i]))
 
             i += 1
 
@@ -255,46 +254,40 @@ class TerminalCapture:
             logger.debug("Screen:\n" + self.to_string())
 
     def _handle_escape_sequence(self, esc_seq):
-        logger.debug('Handling escape sequence: ' + make_printable(esc_seq))
+        old_row = self.row
+        old_col = self.col
         esc_seq = esc_seq[1:] # discard ESC character
         if esc_seq == '':
             pass
         elif esc_seq[0] == '(' or esc_seq[0] == ')':
             # selecting character set
-            logger.debug('Select character set (ignored)')
+            logger.debug('ESC{}: Select character set (ignored)'.format(esc_seq))
             pass
         elif esc_seq[0] == '[':
             if esc_seq[-1] == 'A':
                 # cursor up
                 self._set_row(self.row - self._extract_number(esc_seq, 1))
-                logger.debug('Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
             elif esc_seq[-1] == 'B':
                 # cursor down
                 self._set_row(self.row + self._extract_number(esc_seq, 1))
-                logger.debug('Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
             elif esc_seq[-1] == 'C':
                 # cursor forward
                 self._set_col(self.col + self._extract_number(esc_seq, 1))
-                logger.debug('Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
             elif esc_seq[-1] == 'D':
                 # cursor back
                 self._set_col(self.col - self._extract_number(esc_seq, 1))
-                logger.debug('Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
             if esc_seq[-1] == 'E':
                 # CNL (Cursor Next Line): go to start of nth line down
                 num = self._extract_number(esc_seq, 1)
                 self._set_pos(self.row + num, 0)
-                logger.debug('Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
             elif esc_seq[-1] == 'F':
                 # CPL (Cursor Previous Line): go to start of nth line up
                 num = self._extract_number(esc_seq, 1)
                 self._set_pos(self.row - num, 0)
-                logger.debug('Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
             elif esc_seq[-1] == 'G':
                 # move cursor to specified column (1-based)
                 num = self._extract_number(esc_seq, 1)
                 self._set_col(num, 1)
-                logger.debug('Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
             elif esc_seq[-1] == 'H' or esc_seq[-1] == 'f':
                 # move to specified cursor to position
                 m = re.search(r'(\d*);(\d*)', esc_seq)
@@ -306,11 +299,9 @@ class TerminalCapture:
                     row = 0
                     col = 0
                 self._set_pos(row, col)
-                logger.debug('Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
             elif esc_seq == CLEAR_SCREEN:
                 # clear screen
                 self._clear_screen()
-                logger.debug('Clear screen: Cursor now at {:d},{:d}'.format(self.row+1, self.col+1))
             elif esc_seq == '[0K' or esc_seq == '[K':
                 # clear from cursor to end of line
                 logger.debug('Clearing from {:d},{:d} to end of line'.format(self.row+1, self.col+1))
@@ -359,7 +350,6 @@ class TerminalCapture:
                 # set vertical position
                 row = self._extract_number(esc_seq, 1)
                 self._set_row(row, 1)
-                logger.debug('Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
             elif esc_seq[-1] == 'm':
                 # font effects
                 nums = self._extract_numbers(esc_seq, 0)
@@ -379,7 +369,6 @@ class TerminalCapture:
                         self.curr_background_color = num 
                     elif num >= BG_COLOR_BRIGHT_BLACK and num <= BG_COLOR_BRIGHT_WHITE:
                         self.curr_background_color = num 
-                logger.debug('Font is now: {} on {}'.format(self.curr_foreground_color, self.curr_background_color) + (' bold' if self.bold else ''))
             elif esc_seq[-1] == 'r':
                 # set scroll region
                 m = re.search(r'(\d*);(\d*)', esc_seq)
@@ -395,12 +384,11 @@ class TerminalCapture:
                     self.scroll_region_start = 0
                     self.scroll_region_end = self.screen_rows-1
                 logger.debug('Set scroll region to {},{}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
-                pass
             elif esc_seq[-1] == 'h':
                 # Set mode
                 if esc_seq == '[4h':
                     # Insert Mode (IRM)
-                    logger.debug('Insert mode (unhandled)')
+                    logger.debug('Insert mode (ignored)')
                     pass
                 elif esc_seq == '[=7h':
                     logger.debug('Turning line wrap on')
@@ -409,17 +397,17 @@ class TerminalCapture:
                 # Reset mode (inverse of control codes ending in h)
                 if esc_seq == '[4l':
                     # Replace Mode (IRM)
-                    logger.debug('Replace mode (unhandled)')
+                    logger.debug('Replace mode (ignored)')
                     pass
                 elif esc_seq == '[=7l':
                     logger.debug('Turning line wrap off')
                     self.line_wrap = False
             elif esc_seq[-1] == 't':
                 # Xterm window settings
-                logger.debug('Xterm settings (unhandled)')
+                logger.debug('Xterm settings (ignored)')
                 pass
             else:
-                logger.debug('Unknown escape sequence: ESC' + esc_seq)
+                logger.warn('Unknown escape sequence: ESC' + esc_seq)
         elif esc_seq == '7':
             # save cursor position
             self.saved_row = self.row
@@ -440,7 +428,6 @@ class TerminalCapture:
                     self.screen[row] = self.screen[row-1]
                 self.screen[self.scroll_region_start] = self._new_line()
                 logger.debug('Scrolled down region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
-            logger.debug('Move up with scroll: Cursor now at {:d},{:d}'.format(self.row+1, self.col+1))
         elif esc_seq == 'D':
             # Moves cursor down one line in same column. If cursor is at bottom margin, screen performs a scroll-up.
             if self.row < self.scroll_region_end:
@@ -450,7 +437,6 @@ class TerminalCapture:
                     self.screen[row] = self.screen[row+1]
                 self.screen[self.scroll_region_end] = self._new_line()
                 logger.debug('Scrolled up region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
-            logger.debug('Move down with scroll: Cursor now at {:d},{:d}'.format(self.row+1, self.col+1))
         elif esc_seq == 'E':
             # Moves cursor to first position on next line. If cursor is at bottom margin, screen performs a scroll-up.
             self.col = 0
@@ -461,17 +447,29 @@ class TerminalCapture:
                     self.screen[row] = self.screen[row+1]
                 self.screen[self.scroll_region_end] = self._new_line()
                 logger.debug('Scrolled up region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
-            logger.debug('CRLF: Cursor now at {:d},{:d}'.format(self.row+1, self.col+1))
         elif esc_seq == '=':
             # Enter alternate keypad mode (numlock off?)
-            logger.debug('Turn numlock on (unhandled)')
+            logger.debug('Turn numlock off (ignored)')
             pass
         elif esc_seq == '>':
             # Exit alternate keypad mode (numlock on?)
-            logger.debug('Turn numlock off (unhandled)')
+            logger.debug('Turn numlock on (ignored)')
             pass
         else:
-            logger.debug('Unknown escape sequence: ESC' + esc_seq)
+            logger.warn('Unknown escape sequence: ESC' + esc_seq)
+
+        if logger.isEnabledFor(logging.DEBUG):
+            esc_seq = 'ESC' + make_printable(esc_seq)
+            if self.row != old_row or self.col != old_col:
+                logger.debug(esc_seq + ': Cursor moved to {:d},{:d}'.format(self.row+1, self.col+1))
+            elif re.match(r'ESC\[.*m', esc_seq):
+                logger.debug(esc_seq  + ': Font is now: fg={}, bg={}'.format(self.curr_foreground_color, self.curr_background_color) 
+                             + (' bold' if self.bold else ''))
+            elif esc_seq.startswith('ESC(') or esc_seq.startswith('ESC)'):
+                pass
+            else:
+                logger.debug(esc_seq + ': handled')
+
 
     def _extract_number(self, string, default):
         m = re.search(r'(\d+)', string)
