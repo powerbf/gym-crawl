@@ -17,6 +17,9 @@ auto_eat_chunks=true
 # wait for both MP and HP to regenerate when resting (5)
 rest_wait_both = true
 
+# give rations a constant letter, to make eating easier
+item_slot += ration:r
+
 {
 local ready_counter = 0
 

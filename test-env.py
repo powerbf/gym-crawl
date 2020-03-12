@@ -15,8 +15,8 @@ for arg in arguments:
     if arg == '-no-render':
         render = False
     elif arg == '-quick':      
-        # choose from a reduced set of actions (just movement) to make the demo run faster
-        env.set_action_keys('yuhjklbn<>')
+        # choose from a reduced set of actions (just movement and eating) to make the demo run faster
+        env.set_action_keys(['y','u','h','j','k','l','b','n','<','>','er\x1b'])
     elif arg == '-debug':
         log_level = logging.DEBUG
     elif arg == '-debug-crawl-env':
