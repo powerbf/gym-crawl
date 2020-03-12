@@ -276,7 +276,7 @@ class TerminalCapture:
             elif esc_seq[-1] == 'D':
                 # cursor back
                 self._set_col(self.col - self._extract_number(esc_seq, 1))
-            if esc_seq[-1] == 'E':
+            elif esc_seq[-1] == 'E':
                 # CNL (Cursor Next Line): go to start of nth line down
                 num = self._extract_number(esc_seq, 1)
                 self._set_pos(self.row + num, 0)
@@ -306,12 +306,12 @@ class TerminalCapture:
                 # clear from cursor to end of line
                 logger.debug('Clearing from {:d},{:d} to end of line'.format(self.row+1, self.col+1))
                 for j in range(self.col, self.screen_cols):
-                    self.screen[self.row][j] = self._new_char()
+                    self.screen[self.row][j]['char'] = ' '
             elif esc_seq == '[1K':
                 # clear from cursor to beginning of line
                 logger.debug('Clearing from {:d},{:d} to start of line'.format(self.row+1, self.col+1))
-                for j in range(0, self.col):
-                    self.screen[self.row][j] = self._new_char()
+                for j in range(0, self.col+1):
+                    self.screen[self.row][j]['char'] = ' '
             elif esc_seq == '[2K':
                 # clear whole line
                 logger.debug('Clearing line {:d}'.format(self.row+1))
@@ -344,7 +344,7 @@ class TerminalCapture:
                 logger.debug('Erasing {} chars at {},{}'.format(num, self.row+1, self.col+1))
                 line = self.screen[self.row]
                 for dest in range(self.col, min(self.col+num, self.screen_cols)):
-                    line[dest] = self._new_char()
+                    line[dest]['char'] = ' '
                 self._set_col(self.col + num)
             elif esc_seq[-1] == 'd':
                 # set vertical position
