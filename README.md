@@ -4,7 +4,7 @@ The [Crawl Environment](https://github.com/powerbf/gym-crawl) is an OpenAI Gym e
 
 
 # Pre-requisites
-* DCSS *ascii* version
+* DCSS *ascii* version (0.24 recommended)
 * Python 3
 
 Several python modules. On debian-based linux (e.g. Ubuntu) do:  
@@ -12,10 +12,6 @@ Several python modules. On debian-based linux (e.g. Ubuntu) do:
 * pip3 install setuptools
 * pip3 install wheel
 * pip3 install gym
-
-For using and testing it:  
-* pip3 install tensorflow
-* pip3 install tflearn
 
 # Installation
 
@@ -27,15 +23,17 @@ pip3 install -e .
 
 # Run Tests
 ```bash
-cd gym-crawl
 export CRAWLDIR=<dir where crawl is installed>
+cd gym-crawl
 ```
 (the program will try to execute $CRAWLDIR/bin/crawl)
 ```bash
-./run-quick-test.sh ```
+./run-quick-test.sh
+```
 (runs quick, but only performs movement and eating)
 ```bash
-./run-test.sh ```
-(runs slowers, but performas a fuller range of actions)
+./run-test.sh
+```
+(runs slowers, but performs a fuller range of actions)
 
 
