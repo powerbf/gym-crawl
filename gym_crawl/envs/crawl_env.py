@@ -148,7 +148,7 @@ class CrawlEnv(gym.Env):
         if os.path.exists(crawl_save_file):
             os.remove(crawl_save_file)
 
-        cmd = [self.crawl_exe, '-rc', './crawlrc', '-name', self.character_name, '-species', 'Minotaur', '-background', 'Berserker']
+        cmd = [self.crawl_exe, '-dir', '.', '-rc', './crawlrc', '-name', self.character_name, '-species', 'Minotaur', '-background', 'Berserker']
         self.process = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True)
 
         # detach process stdout from buffer
