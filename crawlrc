@@ -21,8 +21,6 @@ rest_wait_both = true
 item_slot += ration:r
 
 {
-local ready_counter = 0
-
 ---------------------------------------------------------------------
 -- Callback: Called when need to choose stat to increase on level up
 ---------------------------------------------------------------------
@@ -46,14 +44,6 @@ function c_answer_prompt(prompt)
     else
         return false
     end
-end
-
----------------------------------------------------------------------
--- Callback: Called when ready for next command
----------------------------------------------------------------------
-function ready()
-    ready_counter = ready_counter + 1
-    crawl.mpr("Ready (" .. ready_counter .. ")")
 end
 
 }

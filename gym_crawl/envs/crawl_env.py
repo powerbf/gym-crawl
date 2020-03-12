@@ -84,13 +84,15 @@ class CrawlEnv(gym.Env):
         self.stuck_steps = 0
         self.error = False
         self.last_sent = ''
-        self.ready_counter = 0
         self.ready = False
         self.on_main_screen = False
         
         self._init_game_state()
         self.reward = 0
         self.score = 0
+
+        self.player_row = None
+        self.player_col = None
 
         # timing
         self.max_read_time = 0.0
@@ -133,7 +135,6 @@ class CrawlEnv(gym.Env):
         self.steps = 0
         self.stuck_steps = 0
         self.error = False
-        self.ready_counter = 0
         self.on_main_screen = False
         self._init_game_state()
         self.score = 0
@@ -159,11 +160,10 @@ class CrawlEnv(gym.Env):
         thread.daemon = True # thread dies with the program
         thread.start()
         
-        ready = False
         weapon_chosen = False
         game_started = False
         loop_count = 0
-        while not ready:
+        while not game_started:
             loop_count += 1
             if loop_count >= 30:
                 logger.error("Failed to start episode. Screen dump:" + self.frame.to_string())
@@ -171,10 +171,7 @@ class CrawlEnv(gym.Env):
                 break
             self._read_frame();
             screen_contents = self.frame.to_string()
-            if game_started:
-                if 'Ready (1)' in screen_contents:
-                    ready = True
-            elif 'Found a staircase leading out of the dungeon' in screen_contents:
+            if 'Found a staircase leading out of the dungeon' in screen_contents:
                 game_started = True
             elif not weapon_chosen and 'You have a choice of weapons' in screen_contents:  
                 self._send_chars('c') # choose axe
@@ -273,12 +270,11 @@ class CrawlEnv(gym.Env):
         # remove newlines because they mess with regular expression matching
         data = data.replace('\n', '')
 
-        # check for ready message from rc file ready() function
-        m = re.search(r'Ready \((\d+)\)', data)
-        if m and m.group(1):
-            ready_counter = int(m.group(1))
-            if ready_counter > self.ready_counter:
-                self.ready_counter = ready_counter
+        # when drawing main screen, cursor is left at @ position
+        if self.player_row is None or self.player_col is None:
+            self._find_player_symbol()
+        if self.player_row is not None and self.player_col is not None:
+            if data.endswith('\x1b[{};{}H'.format(self.player_row+1, self.player_col+1)):
                 return True
 
         # check for known end of screen strings
@@ -348,11 +344,6 @@ class CrawlEnv(gym.Env):
                 logger.debug('Got {} bytes of data'.format(len(data_chunk)))
                 data += data_chunk
                 got_data = True
-                # check for known ready conditions
-                if self._is_ready(data):
-                    ready_time = read_time
-                    ready = True
-                    done = True
                 # handle prompts, so we don't get stuck
                 if  '--more--' in data_chunk:
                     logger.info('Detected --more-- prompt')
@@ -365,6 +356,10 @@ class CrawlEnv(gym.Env):
                     # This can also crash crawl if too many characters are sent
                     logger.debug('Detected drop prompt for empty inventory')
                     self._send_chars(ESC)
+                elif self._is_ready(data):
+                    ready_time = read_time
+                    ready = True
+                    done = True
         if got_data:
             logger.debug('read_loop_count={}'.format(loop_count))
             if self.steps >= 1 and not long_running_action:
@@ -516,6 +511,16 @@ class CrawlEnv(gym.Env):
             else:
                 logger.debug('Reward for not starting: 0')
                 self.reward = 0
+
+    def _find_player_symbol(self):
+        """Find the @"""
+        for row in range(self.frame.screen_rows):
+            for col in range(self.frame.screen_cols):
+                if self.frame.screen[row][col]['char'] == '@':
+                    logger.info("@ found at {},{}".format(row+1, col+1))
+                    self.player_row = row
+                    self.player_col = col
+                    return
 
     def _init_game_state(self):
         state = {}
