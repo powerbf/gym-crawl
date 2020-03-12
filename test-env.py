@@ -6,12 +6,12 @@ import gym_crawl.terminal_capture as tc
 
 
 # process command line args
-render = False
+render = True
 log_level = logging.INFO
 arguments = sys.argv[1:]
 for arg in arguments:
-    if arg == '-render':
-        render = True
+    if arg == '-no-render':
+        render = False
     elif arg == '-debug':
         log_level = logging.DEBUG
     elif arg == '-debug-crawl-env':
