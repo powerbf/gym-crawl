@@ -2,6 +2,8 @@
 
 The [Crawl Environment](https://github.com/powerbf/gym-crawl) is an OpenAI Gym environment for testing learning machines on Dungeon Crawl Stone Soup (DCSS).
 
+![](quick-test.gif)
+
 Note: I've only run this on Linux, so don't know if it works on other OSes
 
 # Pre-requisites
