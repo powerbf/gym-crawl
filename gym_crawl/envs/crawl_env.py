@@ -61,7 +61,6 @@ class CrawlEnv(gym.Env):
 
     def __init__(self):
         logger.info('__init__')
-        self.action_space = spaces.Discrete(len(ACTION_KEYS)) 
         self.process = None
         self.queue = None
         self.render_file = None
@@ -74,6 +73,9 @@ class CrawlEnv(gym.Env):
         self.crawl_exe = self.crawl_bin_dir + '/crawl'
         if not os.path.exists(self.crawl_exe):
             raise RuntimeError(self.crawl_exe + ' does not exist. Have you set the CRAWLDIR environment variable correctly?')
+
+        self.action_keys = ACTION_KEYS
+        self.action_space = spaces.Discrete(len(self.action_keys)) 
 
         self.episode = 0
         self.frame = None
@@ -106,8 +108,19 @@ class CrawlEnv(gym.Env):
     def get_character_name(self):
         return self.character_name
 
-    def getActionKeys(self):
-        return ACTION_KEYS
+    def set_action_keys(self, keys):
+        """Override the default list of possible actions"""
+        self.action_keys = keys
+        self.action_space = spaces.Discrete(len(self.action_keys)) 
+
+    def get_action_keys(self):
+        """Get the current list of possible actions"""
+        return self.action_keys
+
+    def action_to_keys(self, action):
+        """ Translate an action space index (int) into actual key(s)"""
+        keys = self.action_keys[action]
+        return keys
 
     def reset(self):
         logger.info('reset')
@@ -177,7 +190,7 @@ class CrawlEnv(gym.Env):
         prev_time = self.game_state['Time']
 
         # perform action
-        keys = self._action_to_keys(action)
+        keys = self.action_to_keys(action)
         self._send_chars(keys)
 
         if not self.error:
@@ -230,10 +243,6 @@ class CrawlEnv(gym.Env):
         if self.render_file is not None:
             self.render_file.close()
         logger.debug("Thread count: {}".format(threading.active_count()))
-  
-    def _action_to_keys(self, action):
-        keys = ACTION_KEYS[action]
-        return keys
 
     def _send_chars(self, chars):
         """ Send characters to the crawl process

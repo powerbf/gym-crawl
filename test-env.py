@@ -4,6 +4,8 @@ import gym
 import gym_crawl
 import gym_crawl.terminal_capture as tc
 
+env = gym.make("crawl-v0")
+env.set_character_name('Test')
 
 # process command line args
 render = True
@@ -12,6 +14,9 @@ arguments = sys.argv[1:]
 for arg in arguments:
     if arg == '-no-render':
         render = False
+    elif arg == '-quick':      
+        # choose from a reduced set of actions (just movement) to make the demo run faster
+        env.set_action_keys('yuhjklbn<>')
     elif arg == '-debug':
         log_level = logging.DEBUG
     elif arg == '-debug-crawl-env':
@@ -23,9 +28,6 @@ logging.basicConfig(filename='test-env.log', filemode='w', level=log_level, form
 
 if render:
     sys.stdout.write(tc.ESC_CLEAR_SCREEN)
-
-env = gym.make("crawl-v0")
-env.set_character_name('Test')
 
 # Each of these is its own game.
 for episode in range(5):
@@ -51,7 +53,7 @@ for episode in range(5):
         # Takes much longer to display it.
         if render:
             env.render()
-            keys = tc.make_printable(env._action_to_keys(action))
+            keys = tc.make_printable(env.action_to_keys(action))
             print('Started: ' + str(info['started']) + ', Finished: ' + str(info['finished']) + ', Won: ' + str(info['won']) + '       ')
             print('Health: ' + str(info['HP']) + '/' + str(info['Max HP']) + '  Magic: ' + str(info['MP']) + '/' + str(info['Max MP']) + '      ')
             print('AC: {0:2}  Str: {1:2}'.format(info['AC'], info['Str']))
