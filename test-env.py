@@ -36,21 +36,20 @@ for episode in range(5):
     steps = 0
     done = False
     while not done:
-        #print('Step {}\n'.format(t))
 
-        # This will just create a sample action in any environment.
+        # Pick a random action
         action = env.action_space.sample()
         
         # this executes the environment with an action, 
         # and returns the observation of the environment, 
-        # the reward, if the env is over, and other info.
+        # the reward, whether the env is over, and other info.
         observation, reward, done, info = env.step(action)
         score += reward
         steps += 1
 
         # This will display the environment
         # Only display if you really want to see it.
-        # Takes much longer to display it.
+        # Takes longer to display it.
         if render:
             env.render()
             keys = tc.make_printable(env.action_to_keys(action))
