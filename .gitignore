@@ -4,5 +4,8 @@
 *.out
 *.err
 *.log
-/logs
+*.dat
 *~
+/logs
+/morgue
+/saves

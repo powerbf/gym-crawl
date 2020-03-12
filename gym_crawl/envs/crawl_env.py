@@ -142,14 +142,14 @@ class CrawlEnv(gym.Env):
         self.max_ready_time = 0.0
         self.ready = False
 
-        crawl_saves_dir = self.crawl_path + '/bin/saves'
+        crawl_saves_dir = './saves'
         crawl_save_file = crawl_saves_dir + '/' + self.character_name + '.cs'
 
         if os.path.exists(crawl_save_file):
             os.remove(crawl_save_file)
 
-        cmd = [self.crawl_exe, '-name', self.character_name, '-species', 'Minotaur', '-background', 'Berserker']
-        self.process = Popen(cmd, cwd=self.crawl_bin_dir, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True)
+        cmd = [self.crawl_exe, '-rc', './crawlrc', '-name', self.character_name, '-species', 'Minotaur', '-background', 'Berserker']
+        self.process = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True)
 
         # detach process stdout from buffer
         self.process.stdout = self.process.stdout.detach()
