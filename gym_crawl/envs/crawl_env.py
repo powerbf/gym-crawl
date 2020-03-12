@@ -65,8 +65,15 @@ class CrawlEnv(gym.Env):
         self.process = None
         self.queue = None
         self.render_file = None
-        self.crawl_path = '/home/brian/crawl/0.24-ascii'
         self.character_name = 'Bot'
+
+        self.crawl_path = os.getenv('CRAWLDIR')
+        if self.crawl_path is None:
+            raise RuntimeError('You must set the CRAWLDIR environment variable with the location of your DCSS installation.')
+        self.crawl_bin_dir = self.crawl_path + '/bin'
+        self.crawl_exe = self.crawl_bin_dir + '/crawl'
+        if not os.path.exists(self.crawl_exe):
+            raise RuntimeError(self.crawl_exe + ' does not exist. Have you set the CRAWLDIR environment variable correctly?')
 
         self.episode = 0
         self.frame = None
@@ -122,15 +129,14 @@ class CrawlEnv(gym.Env):
         self.max_ready_time = 0.0
         self.ready = False
 
-        crawl_bin_dir = self.crawl_path + '/bin'
         crawl_saves_dir = self.crawl_path + '/bin/saves'
         crawl_save_file = crawl_saves_dir + '/' + self.character_name + '.cs'
 
         if os.path.exists(crawl_save_file):
             os.remove(crawl_save_file)
 
-        cmd = [crawl_bin_dir + '/crawl', '-name', self.character_name, '-species', 'Minotaur', '-background', 'Berserker']
-        self.process = Popen(cmd, cwd=crawl_bin_dir, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True)
+        cmd = [self.crawl_exe, '-name', self.character_name, '-species', 'Minotaur', '-background', 'Berserker']
+        self.process = Popen(cmd, cwd=self.crawl_bin_dir, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True, universal_newlines=True)
 
         # detach process stdout from buffer
         self.process.stdout = self.process.stdout.detach()
