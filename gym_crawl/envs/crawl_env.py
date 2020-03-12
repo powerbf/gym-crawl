@@ -66,7 +66,7 @@ class CrawlEnv(gym.Env):
         self.queue = None
         self.render_file = None
         self.crawl_path = '/home/brian/crawl/0.24-ascii'
-        self.character_name = 'Lerny'
+        self.character_name = 'Bot'
 
         self.episode = 0
         self.frame = None
@@ -92,6 +92,12 @@ class CrawlEnv(gym.Env):
     def __del__(self):
         #self.close() # logging will throw an exception at this point
         pass
+
+    def set_character_name(self, value):
+        self.character_name = value
+
+    def get_character_name(self):
+        return self.character_name
 
     def getActionKeys(self):
         return ACTION_KEYS

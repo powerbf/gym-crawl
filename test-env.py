@@ -25,6 +25,7 @@ if render:
     sys.stdout.write(tc.ESC_CLEAR_SCREEN)
 
 env = gym.make("crawl-v0")
+env.set_character_name('Test')
 
 # Each of these is its own game.
 for episode in range(5):
