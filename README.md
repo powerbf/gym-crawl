@@ -15,6 +15,7 @@ Several python modules.
 * pip3 install setuptools
 * pip3 install wheel
 * pip3 install gym
+* pip3 install pynput (needed for the test program only)
 
 # Installation
 

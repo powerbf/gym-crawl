@@ -1,8 +1,16 @@
+from pynput.keyboard import Key, Listener
 import sys
+import threading
 import logging
 import gym
 import gym_crawl
 import gym_crawl.terminal_capture as tc
+
+exit_requested =  threading.Event()
+
+def on_press(key):
+    if key == Key.esc:
+        exit_requested.set()
 
 env = gym.make("crawl-v0")
 env.set_character_name('Test')
@@ -29,6 +37,11 @@ logging.basicConfig(filename='test-env.log', filemode='w', level=log_level, form
 if render:
     sys.stdout.write(tc.ESC_CLEAR_SCREEN)
 
+# listener for detecting escape key press
+listener = Listener(on_press=on_press)
+listener.daemon = True # thread dies with the program
+listener.start()
+
 # Each of these is its own game.
 for episode in range(5):
     env.reset()
@@ -36,6 +49,9 @@ for episode in range(5):
     steps = 0
     done = False
     while not done:
+
+        if exit_requested.is_set():
+            sys.exit()
 
         # Pick a random action
         action = env.action_space.sample()
