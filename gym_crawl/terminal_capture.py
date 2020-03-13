@@ -207,7 +207,7 @@ class TerminalCapture:
                     self._set_col(self.col + 1)
             else:
                 if logger.isEnabledFor(logging.DEBUG) and len(string) > 0:
-                    logger.debug('"{}" placed at {:d},{:d}. Cursor now at {:d},{:d}'.format(
+                    logger.debug('Printed "{}" at {:d},{:d}. Cursor now at {:d},{:d}'.format(
                         string, string_row+1, string_col+1, self.row+1, self.col+1))
                     string = ''
             
@@ -302,21 +302,34 @@ class TerminalCapture:
             elif esc_seq == CLEAR_SCREEN:
                 # clear screen
                 self._clear_screen()
-            elif esc_seq == '[0K' or esc_seq == '[K':
-                # clear from cursor to end of line
-                logger.debug('Clearing from {:d},{:d} to end of line'.format(self.row+1, self.col+1))
-                for j in range(self.col, self.screen_cols):
-                    self.screen[self.row][j]['char'] = ' '
-            elif esc_seq == '[1K':
-                # clear from cursor to beginning of line
-                logger.debug('Clearing from {:d},{:d} to start of line'.format(self.row+1, self.col+1))
-                for j in range(0, self.col+1):
-                    self.screen[self.row][j]['char'] = ' '
-            elif esc_seq == '[2K':
-                # clear whole line
-                logger.debug('Clearing line {:d}'.format(self.row+1))
-                for j in range(self.screen_cols):
-                    self.screen[self.row][j] = self._new_char()
+            elif esc_seq[-1] == 'K':
+                # ESC[nK - Erase in line (EL) - erases without moving cursor
+                start = None
+                end = None
+                if esc_seq == '[0K' or esc_seq == '[K':
+                    # erase from cursor (inclusive) to end of line
+                    start = self.col
+                    end = self.screen_cols - 1
+                elif esc_seq == '[1K':
+                    # erase from cursor (inclusive) to beginning of line
+                    start = 0
+                    end = self.col
+                elif esc_seq == '[2K':
+                    # erase whole line
+                    start = 0
+                    end = self.screen_cols - 1
+                    
+                if start == None or end == None:
+                    logger.warn('Unknown escape sequence: ESC' + esc_seq)
+                else:
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug('ESC{}: Erasing from {:d},{:d} to {:d},{:d}'.format(make_printable(esc_seq), self.row+1, start+1, self.row+1, end+1))
+                    
+                    for j in range(start, end+1):
+                        self.screen[self.row][j]['char'] = ' '
+                        self.screen[self.row][j]['foreground_color'] = self.curr_foreground_color
+                        self.screen[self.row][j]['background_color'] = self.curr_background_color
+                        self.screen[self.row][j]['bold'] = self.bold
             elif esc_seq[-1] =='M':
                 # delete lines
                 num = self._extract_number(esc_seq, 1)
