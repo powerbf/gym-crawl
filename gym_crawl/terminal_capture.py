@@ -23,39 +23,39 @@ ESC_FONT_NORMAL = ESC + '[0m'
 FG_COLOR_BLACK = 30
 FG_COLOR_RED = 31
 FG_COLOR_GREEN = 32
-FG_COLOR_YELLOW = 33
+FG_COLOR_BROWN = 33 # supposedly normal intensity yellow
 FG_COLOR_BLUE = 34
 FG_COLOR_MAGENTA = 35
 FG_COLOR_CYAN = 36
-FG_COLOR_WHITE = 37
+FG_COLOR_LIGHT_GRAY = 37 # normal intensity white
 FG_COLOR_DEFAULT = 39
-FG_COLOR_BRIGHT_BLACK = 90
-FG_COLOR_BRIGHT_RED = 91
-FG_COLOR_BRIGHT_GREEN = 92
-FG_COLOR_BRIGHT_YELLOW = 93
-FG_COLOR_BRIGHT_BLUE = 94
-FG_COLOR_BRIGHT_MAGENTA = 95
-FG_COLOR_BRIGHT_CYAN = 96
-FG_COLOR_BRIGHT_WHITE = 97
+FG_COLOR_DARK_GRAY = 90 # aka bright black
+FG_COLOR_LIGHT_RED = 91
+FG_COLOR_LIGHT_GREEN = 92
+FG_COLOR_YELLOW = 93 # aka bright yellow
+FG_COLOR_LIGHT_BLUE = 94
+FG_COLOR_LIGHT_MAGENTA = 95
+FG_COLOR_LIGHT_CYAN = 96
+FG_COLOR_WHITE = 97 # aka bright white
 
 # background colors
 BG_COLOR_BLACK = 40
 BG_COLOR_RED = 41
 BG_COLOR_GREEN = 42
-BG_COLOR_YELLOW = 43
+BG_COLOR_BROWN = 43 # supposedly normal intensity yellow
 BG_COLOR_BLUE = 44
 BG_COLOR_MAGENTA = 45
 BG_COLOR_CYAN = 46
-BG_COLOR_WHITE = 47
+BG_COLOR_LIGHT_GRAY = 47 # normal intensity white
 BG_COLOR_DEFAULT = 49
-BG_COLOR_BRIGHT_BLACK = 100
-BG_COLOR_BRIGHT_RED = 101
-BG_COLOR_BRIGHT_GREEN = 102
-BG_COLOR_BRIGHT_YELLOW = 103
-BG_COLOR_BRIGHT_BLUE = 104
-BG_COLOR_BRIGHT_MAGENTA = 105
-BG_COLOR_BRIGHT_CYAN = 106
-BG_COLOR_BRIGHT_WHITE = 107
+BG_COLOR_DARK_GRAY = 100 # aka bright black
+BG_COLOR_LIGHT_RED = 101
+BG_COLOR_LIGHT_GREEN = 102
+BG_COLOR_YELLOW = 103 # aka bright yellow
+BG_COLOR_LIGHT_BLUE = 104
+BG_COLOR_LIGHT_MAGENTA = 105
+BG_COLOR_LIGHT_CYAN = 106
+BG_COLOR_WHITE = 107 # aka bright white
 
 
 def make_printable(string):
@@ -378,9 +378,9 @@ class TerminalCapture:
                         self.curr_foreground_color = num 
                     elif num == BG_COLOR_DEFAULT:
                         self.curr_background_color = BG_COLOR_BLACK
-                    elif num >= BG_COLOR_BLACK and num <= BG_COLOR_WHITE:
+                    elif num >= BG_COLOR_BLACK and num <= BG_COLOR_LIGHT_GRAY:
                         self.curr_background_color = num 
-                    elif num >= BG_COLOR_BRIGHT_BLACK and num <= BG_COLOR_BRIGHT_WHITE:
+                    elif num >= BG_COLOR_DARK_GRAY and num <= BG_COLOR_WHITE:
                         self.curr_background_color = num 
             elif esc_seq[-1] == 'r':
                 # set scroll region
