@@ -45,7 +45,7 @@ def enqueue_output(out, queue):
     try:
         while not out.closed:
             out.flush()
-            data = out.read1(1024).decode('utf-8', errors='replace')
+            data = out.read1(1024*8).decode('utf-8', errors='replace')
             queue.put(data)
     except:
         pass
