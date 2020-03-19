@@ -2,67 +2,25 @@
 """Module for capturing terminal output, including handling ASCII escape sequences
 """
 
-from gym_crawl.chars import make_printable, ESC, BS, DEL
 import re
-import sys
 import logging
+
+from gym_crawl.chars import make_printable, ESC, BS, DEL
+from gym_crawl.terminal import *
 
 logger = logging.getLogger('term-capture')
 
 
-CLEAR_SCREEN = '[2J'
-ESC_CLEAR_SCREEN = ESC + CLEAR_SCREEN
-ESC_GOTO_NEXT_LINE = ESC + '[E'
+CLEAR_SCREEN = ESC_CLEAR_SCREEN[1:]
 
-ESC_FONT_NORMAL = ESC + '[0m'
-
-# foreground colors
-FG_COLOR_BLACK = 30
-FG_COLOR_RED = 31
-FG_COLOR_GREEN = 32
-FG_COLOR_BROWN = 33 # supposedly normal intensity yellow
-FG_COLOR_BLUE = 34
-FG_COLOR_MAGENTA = 35
-FG_COLOR_CYAN = 36
-FG_COLOR_LIGHT_GRAY = 37 # normal intensity white
-FG_COLOR_DEFAULT = 39
-FG_COLOR_DARK_GRAY = 90 # aka bright black
-FG_COLOR_LIGHT_RED = 91
-FG_COLOR_LIGHT_GREEN = 92
-FG_COLOR_YELLOW = 93 # aka bright yellow
-FG_COLOR_LIGHT_BLUE = 94
-FG_COLOR_LIGHT_MAGENTA = 95
-FG_COLOR_LIGHT_CYAN = 96
-FG_COLOR_WHITE = 97 # aka bright white
-
-# background colors
-BG_COLOR_BLACK = 40
-BG_COLOR_RED = 41
-BG_COLOR_GREEN = 42
-BG_COLOR_BROWN = 43 # supposedly normal intensity yellow
-BG_COLOR_BLUE = 44
-BG_COLOR_MAGENTA = 45
-BG_COLOR_CYAN = 46
-BG_COLOR_LIGHT_GRAY = 47 # normal intensity white
-BG_COLOR_DEFAULT = 49
-BG_COLOR_DARK_GRAY = 100 # aka bright black
-BG_COLOR_LIGHT_RED = 101
-BG_COLOR_LIGHT_GREEN = 102
-BG_COLOR_YELLOW = 103 # aka bright yellow
-BG_COLOR_LIGHT_BLUE = 104
-BG_COLOR_LIGHT_MAGENTA = 105
-BG_COLOR_LIGHT_CYAN = 106
-BG_COLOR_WHITE = 107 # aka bright white
 
 
 class TerminalCapture:
 
     def __init__(self, rows = 24, cols = 80):
         logger.debug('__init__')
-        self.screen_cols = cols
-        self.screen_rows = rows
         self.data = None
-        self.screen = None
+        self.screen = Screen(rows, cols)
         self.row = 0
         self.col = 0
         self.saved_row = None
@@ -72,84 +30,7 @@ class TerminalCapture:
         self.bold = False
         self.line_wrap = False
         self.scroll_region_start = 0
-        self.scroll_region_end = self.screen_rows - 1
-        self._init_screen()
-
-
-    def to_string(self):
-        # return screen contents as string
-        string = ''
-        for line in self.screen:
-            for char in line:
-                string += char['char']
-            string += '\n'
-        return string
-
-    def render(self, row, col, show_border = True):
-        """ print screen contents
-            by default, prints at current cursor. or at row, col if both are specified (1-based, not 0-based)
-        """
-        if row is not None and col is not None:
-            sys.stdout.write(ESC + '[' + str(row) + ';' + str(col) + 'H')
-        sys.stdout.write(ESC_FONT_NORMAL) # reset to defaults
-
-        if show_border:
-            sys.stdout.write('/')
-            for i in range(self.screen_cols):
-                sys.stdout.write('-')
-            sys.stdout.write('\\' + ESC_GOTO_NEXT_LINE)
-
-        last_fg_color = None
-        last_bg_color = None
-        last_bold = False
-
-        for line in self.screen:
-            if show_border:
-                sys.stdout.write('|')
-
-            for char in line:
-
-                # set bold
-                bold = char['bold']
-                if bold != last_bold:
-                    if bold:
-                        sys.stdout.write(ESC + '[1m')
-                    else:
-                       sys.stdout.write(ESC_FONT_NORMAL)
-                       last_fg_color = None
-                       last_bg_color = None
-                    last_bold = bold
- 
-                # set foreground color
-                fg_color = char['foreground_color']
-                if fg_color != last_fg_color:
-                    sys.stdout.write(ESC + '[' + str(fg_color) + 'm')
-                    last_fg_color = fg_color
-
-                # set background color
-                bg_color = char['background_color']
-                if bg_color != last_bg_color:
-                    sys.stdout.write(ESC + '[' + str(bg_color) + 'm')
-                    last_bg_color = bg_color
-
-                sys.stdout.write(char['char'])
-
-            if show_border:
-                sys.stdout.write(ESC_FONT_NORMAL)
-                last_fg_color = None
-                last_bg_color = None
-                last_bold = False
-                sys.stdout.write('|')
-
-            sys.stdout.write(ESC_GOTO_NEXT_LINE)
-
-        if show_border:
-            sys.stdout.write('\\')
-            for i in range(self.screen_cols):
-                sys.stdout.write('-')
-            sys.stdout.write('/' + ESC_GOTO_NEXT_LINE)
-
-        sys.stdout.flush()
+        self.scroll_region_end = self.screen.rows - 1
 
     def handle_output(self, data):
         # update our internal representation of the screen
@@ -167,12 +48,13 @@ class TerminalCapture:
                         string_row = self.row
                         string_col = self.col
                     string += data[i]
-                self.screen[self.row][self.col]['char'] = data[i]
-                self.screen[self.row][self.col]['foreground_color'] = self.curr_foreground_color
-                self.screen[self.row][self.col]['background_color'] = self.curr_background_color
-                self.screen[self.row][self.col]['bold'] = self.bold
+                cell = self.screen.get(self.row, self.col)
+                cell.glyph = data[i]
+                cell.fg_color = self.curr_foreground_color
+                cell.bg_color = self.curr_background_color
+                cell.bold = self.bold
                 # move cursor on
-                if self.col == self.screen_cols - 1:
+                if self.col == self.screen.cols - 1:
                     if self.line_wrap:
                         self._set_pos(self.row + 1, 0)
                 else:
@@ -206,8 +88,8 @@ class TerminalCapture:
                         self.row += 1
                     else:
                         for row in range(self.scroll_region_start, self.scroll_region_end):
-                            self.screen[row] = self.screen[row+1]
-                        self.screen[self.scroll_region_end] = self._new_line()
+                            self.screen.cells[row] = self.screen.cells[row+1]
+                        self.screen.cells[self.scroll_region_end] = self._new_line()
                         logger.debug('LF: Scrolled up region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
                     logger.debug('LF: Cursor now at {:d},{:d}'.format(self.row+1, self.col+1))
                 elif data[i] == '\r':
@@ -223,7 +105,7 @@ class TerminalCapture:
             i += 1
 
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Screen:\n" + self.to_string())
+            logger.debug("Screen:\n" + self.screen.to_string())
 
     def _handle_escape_sequence(self, esc_seq):
         old_row = self.row
@@ -281,7 +163,7 @@ class TerminalCapture:
                 if esc_seq == '[0K' or esc_seq == '[K':
                     # erase from cursor (inclusive) to end of line
                     start = self.col
-                    end = self.screen_cols - 1
+                    end = self.screen.cols - 1
                 elif esc_seq == '[1K':
                     # erase from cursor (inclusive) to beginning of line
                     start = 0
@@ -289,7 +171,7 @@ class TerminalCapture:
                 elif esc_seq == '[2K':
                     # erase whole line
                     start = 0
-                    end = self.screen_cols - 1
+                    end = self.screen.cols - 1
                     
                 if start == None or end == None:
                     logger.warn('Unknown escape sequence: ESC' + esc_seq)
@@ -298,38 +180,39 @@ class TerminalCapture:
                         logger.debug('ESC{}: Erasing from {:d},{:d} to {:d},{:d}'.format(make_printable(esc_seq), self.row+1, start+1, self.row+1, end+1))
                     
                     for j in range(start, end+1):
-                        self.screen[self.row][j]['char'] = ' '
-                        self.screen[self.row][j]['foreground_color'] = self.curr_foreground_color
-                        self.screen[self.row][j]['background_color'] = self.curr_background_color
-                        self.screen[self.row][j]['bold'] = self.bold
+                        cell = self.screen.cells[self.row][j]
+                        cell.glyph = ' '
+                        cell.fg_color = self.curr_foreground_color
+                        cell.bg_color = self.curr_background_color
+                        cell.bold = self.bold
             elif esc_seq[-1] =='M':
                 # delete lines
                 num = self._extract_number(esc_seq, 1)
                 logger.debug('Deleting {:d} lines'.format(num))
-                for dest in range(self.row, self.screen_rows):
+                for dest in range(self.row, self.screen.rows):
                     src = dest + num
-                    if src < self.screen_rows:
-                        self.screen[dest] = self.screen[src]
+                    if src < self.screen.rows:
+                        self.screen.cells[dest] = self.screen.cells[src]
                     else:
-                        self.screen[dest] = self._new_line()
+                        self.screen.cells[dest] = self._new_line()
             elif esc_seq[-1] == 'P':
                 # CSI Ps P  Delete Ps Character(s) (default = 1) (DCH).
                 num = self._extract_number(esc_seq, 1)
-                line = self.screen[self.row]
+                line = self.screen.cells[self.row]
                 logger.debug('Deleting {} chars at {},{}'.format(num, self.row+1, self.col+1))
-                for dest in range(self.col, self.screen_cols):
+                for dest in range(self.col, self.screen.cols):
                     src = dest + num
-                    if src < self.screen_cols:
+                    if src < self.screen.cols:
                         line[dest] = line[src]
                     else:
-                        line[dest] = self._new_char()
+                        line[dest] = Cell()
             elif esc_seq[-1] == 'X':
                 # CSI Ps X  Erase Ps Character(s) (default = 1) (ECH).
                 num = self._extract_number(esc_seq, 1)
                 logger.debug('Erasing {} chars at {},{}'.format(num, self.row+1, self.col+1))
-                line = self.screen[self.row]
-                for dest in range(self.col, min(self.col+num, self.screen_cols)):
-                    line[dest]['char'] = ' '
+                line = self.screen.cells[self.row]
+                for dest in range(self.col, min(self.col+num, self.screen.cols)):
+                    line[dest].glyph = ' '
                 self._set_col(self.col + num)
             elif esc_seq[-1] == 'd':
                 # set vertical position
@@ -362,12 +245,12 @@ class TerminalCapture:
                     self.scroll_region_start = 0 if m.group(1) == '' else int(m.group(1))-1
                     if self.scroll_region_start < 0:
                         self.scroll_region_start = 0
-                    self.scroll_region_end = self.screen_rows-1 if m.group(2) == '' else int(m.group(2))-1
-                    if self.scroll_region_end > self.screen_rows-1:
-                        self.scroll_region_end = self.screen_rows-1
+                    self.scroll_region_end = self.screen.rows-1 if m.group(2) == '' else int(m.group(2))-1
+                    if self.scroll_region_end > self.screen.rows-1:
+                        self.scroll_region_end = self.screen.rows-1
                 else:
                     self.scroll_region_start = 0
-                    self.scroll_region_end = self.screen_rows-1
+                    self.scroll_region_end = self.screen.rows-1
                 logger.debug('Set scroll region to {},{}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
             elif esc_seq[-1] == 'h':
                 # Set mode
@@ -410,8 +293,8 @@ class TerminalCapture:
                 self.row -= 1
             else:
                 for row in range(self.scroll_region_end, self.scroll_region_start, -1):
-                    self.screen[row] = self.screen[row-1]
-                self.screen[self.scroll_region_start] = self._new_line()
+                    self.screen.cells[row] = self.screen.cells[row-1]
+                self.screen.cells[self.scroll_region_start] = self._new_line()
                 logger.debug('Scrolled down region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
         elif esc_seq == 'D':
             # Moves cursor down one line in same column. If cursor is at bottom margin, screen performs a scroll-up.
@@ -419,8 +302,8 @@ class TerminalCapture:
                 self.row += 1
             else:
                 for row in range(self.scroll_region_start, self.scroll_region_end):
-                    self.screen[row] = self.screen[row+1]
-                self.screen[self.scroll_region_end] = self._new_line()
+                    self.screen.cells[row] = self.screen.cells[row+1]
+                self.screen.cells[self.scroll_region_end] = self._new_line()
                 logger.debug('Scrolled up region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
         elif esc_seq == 'E':
             # Moves cursor to first position on next line. If cursor is at bottom margin, screen performs a scroll-up.
@@ -429,8 +312,8 @@ class TerminalCapture:
                 self.row += 1
             else:
                 for row in range(self.scroll_region_start, self.scroll_region_end):
-                    self.screen[row] = self.screen[row+1]
-                self.screen[self.scroll_region_end] = self._new_line()
+                    self.screen.cells[row] = self.screen.cells[row+1]
+                self.screen.cells[self.scroll_region_end] = self._new_line()
                 logger.debug('Scrolled up region {:d},{:d}'.format(self.scroll_region_start+1, self.scroll_region_end+1))
         elif esc_seq == '=':
             # Enter alternate keypad mode (numlock off?)
@@ -472,48 +355,28 @@ class TerminalCapture:
             results.append(default)
         return results
 
-    def _init_screen(self):
-        self.screen = []
-        for row in range(self.screen_rows):
-            self.screen.append(self._new_line())
-        self.row = 0
-        self.col = 0
-
     def _clear_screen(self):
-        for row in range(self.screen_rows):
-            for col in range(self.screen_cols):
-                self.screen[row][col] = self._new_char()
+        self.screen.clear()
         self.row = 0
         self.col = 0
-
-    def _new_char(self):
-        char = {}
-        char['char'] = ' '
-        char['foreground_color'] = FG_COLOR_DEFAULT
-        char['background_color'] = BG_COLOR_BLACK
-        char['bold'] = False
-        return char
 
     def _new_line(self):
-        line = []
-        for col in range(self.screen_cols):
-            line.append(self._new_char())
-        return line
+        return [Cell() for _ in range(self.screen.cols)]
 
     def _set_row(self, val, base = 0):
         val -= base
         if val < 0:
             val = 0
-        elif val > self.screen_rows - 1:
-            val = self.screen_rows - 1
+        elif val > self.screen.rows - 1:
+            val = self.screen.rows - 1
         self.row = val
 
     def _set_col(self, val, base = 0):
         val -= base
         if val < 0:
             val = 0
-        elif val > self.screen_cols - 1:
-            val = self.screen_cols - 1
+        elif val > self.screen.cols - 1:
+            val = self.screen.cols - 1
         self.col = val
 
     def _set_pos(self, row, col, base = 0):
