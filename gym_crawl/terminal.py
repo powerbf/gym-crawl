@@ -78,12 +78,16 @@ class Screen:
     def get(self, row, col):
         return self.cells[row][col]
 
-    def to_string(self):
+    def to_string(self, start_row = 0, start_col = 0, end_row = None, end_col = None):
         """ return screen contents as string """
+        if end_row is None:
+            end_row = self.rows - 1
+        if end_col is None:
+            end_col = self.cols - 1
         string = ''
-        for line in self.cells:
-            for cell in line:
-                string += cell.glyph
+        for row in range(start_row, end_row + 1):
+            for col in range(start_col, end_col + 1):
+                string += self.cells[row][col].glyph
             string += '\n'
         return string
  

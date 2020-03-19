@@ -5,12 +5,16 @@ from subprocess import Popen, PIPE
 from threading import Thread
 import threading 
 from queue import Queue, Empty
+import copy
 import logging
 import os
 import re
 import time
+
 import gym_crawl.terminal_capture as tc
 from gym_crawl.chars import *
+from gym_crawl.gamestate import GameState
+import gym_crawl.terminal_parser as parser
 
 
 LONG_RUNNING_ACTIONS = 'o5'
@@ -76,11 +80,9 @@ class CrawlEnv(gym.Env):
         self.error = False
         self.last_sent = ''
         self.ready = False
-        self.on_main_screen = False
-        
-        self._init_game_state()
         self.reward = 0
         self.score = 0
+        self.game_state = GameState()
 
         self.player_row = None
         self.player_col = None
@@ -127,7 +129,7 @@ class CrawlEnv(gym.Env):
         self.stuck_steps = 0
         self.error = False
         self.on_main_screen = False
-        self._init_game_state()
+        self.game_state = GameState()
         self.score = 0
 
         self.max_read_time = 0.0
@@ -168,14 +170,14 @@ class CrawlEnv(gym.Env):
                 self._send_chars('c') # choose axe
                 weapon_chosen = True
 
-        done = (self.game_state['finished'] or self.error)
+        done = (self.game_state.is_finished() or self.error)
         return self.terminal.screen, self.reward, done, self.game_state
 
     def step(self, action):
         self.steps += 1
         logger.debug("Step {} start: self.ready={}, screen:\n".format(self.steps, self.ready) + self.terminal.screen.to_string())
 
-        prev_time = self.game_state['Time']
+        prev_time = self.game_state.time
 
         # perform action
         keys = self.action_to_keys(action)
@@ -184,20 +186,20 @@ class CrawlEnv(gym.Env):
         if not self.error:
             self._read_frame();
 
-        if self.game_state['Time'] == prev_time:
+        if self.game_state.time == prev_time:
             self.stuck_steps += 1
         else:
             self.stuck_steps = 0
 
         self.score += self.reward
 
-        done = self.error or self.game_state['finished']
+        done = self.error or self.game_state.is_finished()
         if not done and self.stuck_steps >= 1000:
             logger.info('Stuck for 1000 steps. Giving up. Screen dump:\n' + self.terminal.screen.to_string())
             done = True
 
         if self.steps % 100 == 0:
-            logger.info('Step {}: Game Time={}'.format(self.steps, self.game_state['Time']))
+            logger.info('Step {}: Game Time={}'.format(self.steps, self.game_state.time))
 
         return self.terminal.screen, self.reward, done, self.game_state
 
@@ -365,143 +367,69 @@ class CrawlEnv(gym.Env):
 
             self.frame_count += 1
             self._process_data(data)
-            self._update_game_state()
+
         self.ready = ready
 
     def _process_data(self, data):
+        # save old game state
+        prev_state = copy.copy(self.game_state)
+        
         # capture screen update
         self.terminal.handle_output(data)
 
-        if self.game_state['finished'] or not self.game_state['started']:
-            return
-
-        # check for game end
-        if 'You have escaped' in data:
-            self.game_state['finished'] = True
-            if self.game_state['Has Orb']:
-                self.game_state['won'] = True
-                logger.debug('Reward for winning: +1e6')
-                self.reward = 1000000
-            else:
-                logger.debug('Reward for leaving without orb: -1e6')
-                self.reward = -1000000
-        elif 'You die' in data:
-            logger.info("Step {}: Died".format(self.steps))
-            self.game_state['finished'] = True
-
-        if self.game_state['finished']:
-            return
-
-        if not self.game_state['Has Orb']:
-            if 'You pick up the Orb of Zot' in data:
-                logger.info("Step {}: Picked up the Orb".format(self.steps))
-                seld.reward += 10000
-                self.game_state['Has Orb'] = True
-
-    def _update_game_state(self):
-        display = self.terminal.screen.to_string()
-
-        # check if we are on main game screen
-        if re.search(r'Health:.+Magic:.+AC:.+Str:', display.replace('\n', '')):
-            self.on_main_screen = True
-        else:
-            self.on_main_screen = False
-            return
+        # get new state
+        parser.update_game_state(self.terminal.screen, self.game_state)
         
-        # update hp/max_hp
-        m = re.search(r'Health: *(\d+)\/(\d+)', display)
-        if m:
-            if m.group(1):
-                self.game_state['HP'] = int(m.group(1))
-            if m.group(2):
-                self.game_state['Max HP'] = int(m.group(2))
-
-        # update mp/max_mp
-        m = re.search(r'Magic: *(\d+)/(\d+)', display)
-        if m:
-            mp = int(m.group(1))
-            prev_mp = self.game_state['MP']
-            if mp != prev_mp:
-                self.game_state['MP'] = mp
-
-            max_mp = int(m.group(2))
-            prev_max_mp = self.game_state['Max MP']
-            if max_mp != prev_max_mp:
-                self.game_state['Max MP'] = max_mp
-
-        # update experience level
-        m = re.search(r'XL: *(\d+) *Next: *(\d+)', display)
-        if m and m.group(1) and m.group(2):
-            xl = int(m.group(1))
-            prev_xl = self.game_state['XL']
-            if xl != prev_xl:
-                if self.game_state['started']:
-                    logger.debug('Reward for XL: {}'.format(xl - prev_xl))
-                    self.reward += (xl - prev_xl) * 100
-                self.game_state['XL'] = xl
-
-            pcnt_next_xl = int(m.group(2))
-            prev_pcnt_next_xl = self.game_state['Percent Next XL']
-            if pcnt_next_xl != prev_pcnt_next_xl:
-                if self.game_state['started']:
-                    logger.debug('Reward for percent XL: {}'.format(pcnt_next_xl - prev_pcnt_next_xl))
-                    self.reward += (pcnt_next_xl - prev_pcnt_next_xl)
-                self.game_state['Percent Next XL'] = pcnt_next_xl
-
-        # update character stats
-        m = re.search(r'AC: *(\d+)', display)
-        if m:
-            self.game_state['AC'] = int(m.group(1))
-        
-        m = re.search(r'EV: *(\d+)', display)
-        if m:
-            self.game_state['EV'] = int(m.group(1))
-
-        m = re.search(r'SH: *(\d+)', display)
-        if m:
-            self.game_state['SH'] = int(m.group(1))
-
-        m = re.search(r'Str: *(\d+)', display)
-        if m:
-            self.game_state['Str'] = int(m.group(1))
-        
-        m = re.search(r'Int: *(\d+)', display)
-        if m:
-            self.game_state['Int'] = int(m.group(1))
-
-        m = re.search(r'Dex: *(\d+)', display)
-        if m:
-            self.game_state['Dex'] = int(m.group(1))
-
-        # Update time
-        m = re.search(r'Time: *([\d\.]+)', display)
-        if m:
-            time = float(m.group(1))
-            prev_time = self.game_state['Time']
-            if time > prev_time:
-                logger.debug('Time: ' + str(time))
-                self.game_state['Time'] = time
-
-        # Update place
-        m = re.search(r'Place: *([A-Za-z0-9\:]+)', display)
-        if m:
-            self.game_state['Place'] = m.group(1)
-
-        # Update noise
-        m = re.search(r'Noise: *(\=*)', display)
-        if m:
-            self.game_state['Noise'] = len(m.group(1))
-
-        if not self.game_state['started']:
-            # check if game has started now
-            if self.game_state['Max HP'] != 0:
-                self.game_state['started'] = True
+        if not prev_state.started:
+            if self.game_state.started:
                 # reward navigation through start menu to actual game
                 logger.debug('Reward for starting: 1')
                 self.reward = 1
             else:
                 logger.debug('Reward for not starting: 0')
                 self.reward = 0
+            return
+        
+        # check for game end
+        if 'You have escaped' in data:
+            if self.game_state.has_orb:
+                self.game_state.won = True
+                logger.debug('Reward for winning: +1e6')
+                self.reward = 1000000
+            else:
+                self.game_state.escaped = True
+                logger.debug('Reward for leaving without orb: -1e6')
+                self.reward = -1000000
+        elif 'You die' in data:
+            logger.info("Step {}: Died".format(self.steps))
+            self.game_state.died = True
+
+        if self.game_state.is_finished():
+            return
+
+        if not self.game_state.has_orb:
+            if 'You pick up the Orb of Zot' in data:
+                logger.info("Step {}: Picked up the Orb".format(self.steps))
+                self.reward += 10000
+                self.game_state.has_orb = True
+
+        # check for experience gain
+        xl = self.game_state.xl
+        prev_xl = prev_state.xl
+        pcnt_next = self.game_state.pcnt_next_xl
+        prev_pcnt_next = prev_state.pcnt_next_xl
+        
+        xp_reward = (xl - prev_xl) * 100
+        xp_reward += pcnt_next - prev_pcnt_next
+        
+        if xp_reward != 0:
+            logger.debug('Reward for percent XP: {}'.format(xp_reward))
+            self.reward += xp_reward
+        
+        # Check time
+        if self.game_state.time > prev_state.time:
+            logger.debug('Time: ' + str(self.game_state.time))
+
 
     def _find_player_symbol(self):
         """Find the @"""
@@ -513,26 +441,4 @@ class CrawlEnv(gym.Env):
                     self.player_col = col
                     return
 
-    def _init_game_state(self):
-        state = {}
-        state['started'] = False
-        state['finished'] = False
-        state['Has Orb'] = False
-        state['won'] = False
-        state['Time'] = 0.0
-        state['Place'] = ''
-        state['Noise'] = 0
-        state['XL'] = 1
-        state['Percent Next XL'] = 0
-        state['HP'] = 0
-        state['Max HP'] = 0
-        state['MP'] = 0
-        state['Max MP'] = 0
-        state['AC'] = 0
-        state['EV'] = 0
-        state['SH'] = 0
-        state['Str'] = 0
-        state['Int'] = 0
-        state['Dex'] = 0
-        self.game_state = state
 
