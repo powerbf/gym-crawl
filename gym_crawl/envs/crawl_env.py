@@ -171,7 +171,7 @@ class CrawlEnv(gym.Env):
                 weapon_chosen = True
 
         done = (self.game_state.is_finished() or self.error)
-        return self.terminal.screen, self.reward, done, self.game_state
+        return self.game_state, self.reward, done, self.terminal.screen
 
     def step(self, action):
         self.steps += 1
@@ -201,7 +201,7 @@ class CrawlEnv(gym.Env):
         if self.steps % 100 == 0:
             logger.info('Step {}: Game Time={}'.format(self.steps, self.game_state.time))
 
-        return self.terminal.screen, self.reward, done, self.game_state
+        return self.game_state, self.reward, done, self.terminal.screen
 
     def _render_to_file(self, mode='human'):
         if self.render_file is None:
