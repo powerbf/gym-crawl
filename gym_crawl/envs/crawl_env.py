@@ -69,7 +69,7 @@ class CrawlEnv(gym.Env):
         self.action_space = spaces.Discrete(len(self.action_keys)) 
 
         self.episode = 0
-        self.frame = None
+        self.terminal = None
         self.frame_count = 0
         self.steps = 0
         self.stuck_steps = 0
@@ -121,7 +121,7 @@ class CrawlEnv(gym.Env):
 
         self.episode += 1
 
-        self.frame = tc.TerminalCapture()
+        self.terminal = tc.TerminalCapture()
         self.frame_count = 0
         self.steps = 0
         self.stuck_steps = 0
@@ -157,11 +157,11 @@ class CrawlEnv(gym.Env):
         while not game_started:
             loop_count += 1
             if loop_count >= 30:
-                logger.error("Failed to start episode. Screen dump:" + self.frame.screen.to_string())
+                logger.error("Failed to start episode. Screen dump:" + self.terminal.screen.to_string())
                 self.error = True
                 break
             self._read_frame();
-            screen_contents = self.frame.screen.to_string()
+            screen_contents = self.terminal.screen.to_string()
             if 'Found a staircase leading out of the dungeon' in screen_contents:
                 game_started = True
             elif not weapon_chosen and 'You have a choice of weapons' in screen_contents:  
@@ -169,11 +169,11 @@ class CrawlEnv(gym.Env):
                 weapon_chosen = True
 
         done = (self.game_state['finished'] or self.error)
-        return self.frame.screen, self.reward, done, self.game_state
+        return self.terminal.screen, self.reward, done, self.game_state
 
     def step(self, action):
         self.steps += 1
-        logger.debug("Step {} start: self.ready={}, screen:\n".format(self.steps, self.ready) + self.frame.screen.to_string())
+        logger.debug("Step {} start: self.ready={}, screen:\n".format(self.steps, self.ready) + self.terminal.screen.to_string())
 
         prev_time = self.game_state['Time']
 
@@ -193,25 +193,25 @@ class CrawlEnv(gym.Env):
 
         done = self.error or self.game_state['finished']
         if not done and self.stuck_steps >= 1000:
-            logger.info('Stuck for 1000 steps. Giving up. Screen dump:\n' + self.frame.screen.to_string())
+            logger.info('Stuck for 1000 steps. Giving up. Screen dump:\n' + self.terminal.screen.to_string())
             done = True
 
         if self.steps % 100 == 0:
             logger.info('Step {}: Game Time={}'.format(self.steps, self.game_state['Time']))
 
-        return self.frame.screen, self.reward, done, self.game_state
+        return self.terminal.screen, self.reward, done, self.game_state
 
     def _render_to_file(self, mode='human'):
         if self.render_file is None:
             self.render_file = open("render.txt", "w")
-        for line in self.frame.screen.cells:
+        for line in self.terminal.screen.cells:
             self.render_file.write(line)
             self.render_file.write('\n')
-        self.render_file.write('\n------------ END FRAME ({} lines) -----------\n'.format(len(self.frame)))
+        self.render_file.write('\n------------ END FRAME ({} lines) -----------\n'.format(self.terminal.screen.rows))
 
     def _render_to_screen(self, mode='human'):
-        if self.frame is not None:
-            self.frame.screen.render(1, 1)
+        if self.terminal is not None:
+            self.terminal.screen.render(1, 1)
             action = tc.make_printable(self.last_sent)
             print('Episode: {}  Step: {:<6d}  Action: {:<5}  Reward: {:<7d}  Cumulative score: {:<10d}'.format(self.episode, self.steps, action, self.reward, self.score))
 
@@ -242,7 +242,7 @@ class CrawlEnv(gym.Env):
             self.process.stdin.flush()
         except Exception as e:
             logger.error(str(e))
-            logger.error("I think I overran crawl's input buffer. This is where I was:\n" + self.frame.screen.to_string())
+            logger.error("I think I overran crawl's input buffer. This is where I was:\n" + self.terminal.screen.to_string())
             self.error = True
 
     def _read_data_chunk(self, read_timeout):
@@ -328,7 +328,7 @@ class CrawlEnv(gym.Env):
             if data_chunk is None:
                 if elapsed_time >= read_timeout:
                     if long_running_action:
-                        logger.warn("Step {}: Timeout on action '{}': {:.3f} seconds. Screen dump:\n".format(self.steps, chars, elapsed_time) + self.frame.screen.to_string())
+                        logger.warn("Step {}: Timeout on action '{}': {:.3f} seconds. Screen dump:\n".format(self.steps, chars, elapsed_time) + self.terminal.screen.to_string())
                     done = True
             else:
                 read_time = (time.perf_counter() - start_time)
@@ -370,7 +370,7 @@ class CrawlEnv(gym.Env):
 
     def _process_data(self, data):
         # capture screen update
-        self.frame.handle_output(data)
+        self.terminal.handle_output(data)
 
         if self.game_state['finished'] or not self.game_state['started']:
             return
@@ -399,7 +399,7 @@ class CrawlEnv(gym.Env):
                 self.game_state['Has Orb'] = True
 
     def _update_game_state(self):
-        display = self.frame.screen.to_string()
+        display = self.terminal.screen.to_string()
 
         # check if we are on main game screen
         if re.search(r'Health:.+Magic:.+AC:.+Str:', display.replace('\n', '')):
@@ -505,9 +505,9 @@ class CrawlEnv(gym.Env):
 
     def _find_player_symbol(self):
         """Find the @"""
-        for row in range(self.frame.screen.rows):
-            for col in range(self.frame.screen.cols):
-                if self.frame.screen.cells[row][col].glyph == '@':
+        for row in range(self.terminal.screen.rows):
+            for col in range(self.terminal.screen.cols):
+                if self.terminal.screen.cells[row][col].glyph == '@':
                     logger.info("@ found at {},{}".format(row+1, col+1))
                     self.player_row = row
                     self.player_col = col
