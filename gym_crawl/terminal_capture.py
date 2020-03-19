@@ -2,16 +2,13 @@
 """Module for capturing terminal output, including handling ASCII escape sequences
 """
 
-from curses import ascii
+from gym_crawl.chars import make_printable, ESC, BS, DEL
 import re
 import sys
 import logging
 
 logger = logging.getLogger('term-capture')
 
-BS = chr(ascii.BS)
-ESC = chr(ascii.ESC)
-DEL = chr(ascii.DEL)
 
 CLEAR_SCREEN = '[2J'
 ESC_CLEAR_SCREEN = ESC + CLEAR_SCREEN
@@ -56,31 +53,6 @@ BG_COLOR_LIGHT_BLUE = 104
 BG_COLOR_LIGHT_MAGENTA = 105
 BG_COLOR_LIGHT_CYAN = 106
 BG_COLOR_WHITE = 107 # aka bright white
-
-
-def make_printable(string):
-    """ Replace non-printable characters with codes
-    """
-    result = ''
-    for ch in string:
-        if ch < ' ':
-            if ch == '\t':
-                result += '\\t'
-            elif ch == '\n':
-                result += '\\n'
-            elif ch == '\r':
-                result += '\\r'
-            else:
-                result += '^' + chr(ord(ch)+ord('@'))
-        elif ch == DEL:
-            result += 'DEL'
-        elif ch >= ' ' and ch <= '~':
-            result += ch
-        else:
-            o = ord(ch)
-            result += "\\x%0.2x" % o
-    result = re.sub("(.{80})", "\\1\n", result, 0, re.DOTALL)
-    return result
 
 
 class TerminalCapture:
@@ -182,7 +154,7 @@ class TerminalCapture:
     def handle_output(self, data):
         # update our internal representation of the screen
         # this is tricky because the raw data contains ASCII control sequences
-        logger.debug('Processing data:\n' + make_printable(data))
+        logger.debug('Processing data:\n' + make_printable(data, 80))
         self.data = data
         i = 0
         string = ''

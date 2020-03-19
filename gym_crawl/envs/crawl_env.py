@@ -8,19 +8,10 @@ from queue import Queue, Empty
 import logging
 import os
 import re
-import sys
 import time
 import gym_crawl.terminal_capture as tc
+from gym_crawl.chars import *
 
-# Keys
-ESC = tc.ESC
-ENTER = '\x0D'
-CTRL_A = '\x01'
-CTRL_E = '\x05'
-CTRL_O = '\x1F'
-CTRL_P = '\x10'
-CTRL_Q = '\x11'
-CTRL_X = '\x18'
 
 LONG_RUNNING_ACTIONS = 'o5'
 
