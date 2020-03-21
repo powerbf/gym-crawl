@@ -372,7 +372,8 @@ class CrawlEnv(gym.Env):
 
     def _process_data(self, data):
         # save old game state
-        prev_state = copy.copy(self.game_state)
+        prev_state = self.game_state
+        self.game_state = copy.deepcopy(prev_state)
         
         # capture screen update
         self.terminal.handle_output(data)
