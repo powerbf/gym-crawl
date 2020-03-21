@@ -69,20 +69,20 @@ for episode in range(5):
         if render:
             env.render()
             keys = tc.make_printable(env.action_to_keys(action))
-            print('Started: ' + str(info.started) + ', Finished: ' + str(info.is_finished()) + ', Won: ' + str(info.won) + '       ')
-            print('Health: ' + str(info.hp) + '/' + str(info.max_hp) + '  Magic: ' + str(info.mp) + '/' + str(info.max_mp) + '      ')
-            print('AC: {0:2}  Str: {1:2}'.format(info.ac, info.str))
-            print('EV: {0:2}  Int: {1:2}'.format(info.ev, info.int))
-            print('SH: {0:2}  Dex: {1:2}'.format(info.sh, info.dex))
-            print('XL: {0:2}  Next: {1:2}%  Place: {2:15}'.format(info.xl, info.pcnt_next_xl, info.place))
-            print('Noise: {:2}  Time: {:8.1f}'.format(info.noise, info.time))
+            print('Started: ' + str(observation.started) + ', Finished: ' + str(observation.is_finished()) + ', Won: ' + str(observation.won) + '       ')
+            print('Health: ' + str(observation.hp) + '/' + str(observation.max_hp) + '  Magic: ' + str(observation.mp) + '/' + str(observation.max_mp) + '      ')
+            print('AC: {0:2}  Str: {1:2}'.format(observation.ac, observation.str))
+            print('EV: {0:2}  Int: {1:2}'.format(observation.ev, observation.int))
+            print('SH: {0:2}  Dex: {1:2}'.format(observation.sh, observation.dex))
+            print('XL: {0:2}  Next: {1:2}%  Place: {2:15}'.format(observation.xl, observation.pcnt_next_xl, observation.place))
+            print('Noise: {:2}  Time: {:8.1f}'.format(observation.noise, observation.time))
 
         if done:
             if not render:
                 print('Episode: {}  Steps: {}  Score: {}'.format(episode+1, steps, score))   
             logging.info('Episode: {}  Steps: {}  Score: {}'.format(episode+1, steps, score))
-            logging.info('  XL: {:2}  Next: {:2}%  Time: {:8.1f} Place: {:15}'.format(info.xl, info.pcnt_next_xl, info.time, info.place))
-            logging.info('  Health: ' + str(info.hp) + '/' + str(info.max_hp) + '  Magic: ' + str(info.mp) + '/' + str(info.max_mp) + '      ')
+            logging.info('  XL: {:2}  Next: {:2}%  Time: {:8.1f} Place: {:15}'.format(observation.xl, observation.pcnt_next_xl, observation.time, observation.place))
+            logging.info('  Health: ' + str(observation.hp) + '/' + str(observation.max_hp) + '  Magic: ' + str(observation.mp) + '/' + str(observation.max_mp) + '      ')
 
 
 
