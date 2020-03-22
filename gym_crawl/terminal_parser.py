@@ -35,6 +35,9 @@ def extract_map(screen):
     """ Extract the map from the terminal data """
     # transform from row-major (row, col) to column-major (x, y)
     result = Map()
+    player_x = (MAP_END_COL + MAP_START_COL) // 2
+    player_y = (MAP_END_ROW + MAP_START_ROW) // 2
+    result.player_pos = (player_x, player_y)
     result.cells = {}
     for col in range(MAP_START_COL, MAP_END_COL+1):
         x = col - MAP_START_COL

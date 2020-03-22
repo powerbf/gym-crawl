@@ -41,6 +41,7 @@ class Map:
     def __init__(self):
         # array of cells, indexed by x, y
         self.cells = None
+        self.player_pos = None
 
     def to_string(self):
         """ return map contents as string """
