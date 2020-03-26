@@ -1,1 +1,1 @@
-from gym_crawl.envs.crawl_env import CrawlEnv
+from gym_crawl.envs.crawl_terminal_env import CrawlTerminalEnv

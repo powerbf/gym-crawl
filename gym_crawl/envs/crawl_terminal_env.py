@@ -1,3 +1,7 @@
+"""
+Gym for DCSS terminal (a.k.a. console) version
+"""
+
 import gym
 from gym import error, spaces, utils
 from gym.utils import seeding
@@ -47,7 +51,7 @@ def enqueue_output(out, queue):
     finally:
         logger.debug("enqueue_ouput exiting")
 
-class CrawlEnv(gym.Env):
+class CrawlTerminalEnv(gym.Env):
     metadata = {'render.modes': ['human']}
     
     # dimensions of screen in characters (not pixels!)

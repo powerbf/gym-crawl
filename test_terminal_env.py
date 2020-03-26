@@ -12,7 +12,7 @@ def on_press(key):
     if key == Key.esc:
         exit_requested.set()
 
-env = gym.make("crawl-v0")
+env = gym.make("crawl-terminal-v0")
 env.set_character_name('Test')
 
 # process command line args
