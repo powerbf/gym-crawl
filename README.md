@@ -24,17 +24,18 @@ libsqlite3-dev libz-dev pkg-config python-yaml binutils-gold
 ```
 
 ### Get the code:  
-```git clone https://github.com/crawl/crawl.git
+```bash
+git clone https://github.com/crawl/crawl.git
 cd crawl
 git checkout stone_soup-0.24
 git submodule update --init
 ```
 
-Pick a directory where you want to install crawl. I will refer to this as <crawldir> from now on. 
-I prefer to use somewhere under my home directory. If <crawldir> is a system folder like /usr/local, you will have to prepend "sudo" to some of these commands.
+Pick a directory where you want to install crawl. I will refer to this as &lt;crawldir&gt; from now on. 
+I prefer to use somewhere under my home directory. If &lt;crawldir&gt; is a system folder like /usr/local, you will have to prepend "sudo" to some of these commands.
 
 ### Build:  
-```
+```bash
 cd crawl-ref/source
 make install prefix=<crawldir> WEBTILES=y
 cp -r webserver <crawldir>
@@ -42,14 +43,18 @@ cp -r webserver <crawldir>
 
 ### Install webserver files (optional):  
 ```
-cp -r webserver <crawldir>
+cp -r webserver &lt;crawldir>
 cd <crawldir>
 mkdir rcs
 ```
-Now edit <crawldir>/webserver/config.py and update all instances of:
-```crawl_binary = "./crawl"```
+Now edit &lt;crawldir&gt;/webserver/config.py and update all instances of:
+```
+crawl_binary = "./crawl"
+```
 to 
-```crawl_binary = "./bin/crawl"```
+```
+crawl_binary = "./bin/crawl"
+```
 
 # Install gym-crawl
 
@@ -70,7 +75,7 @@ Several python modules.
 git clone https://github.com/powerbf/gym-crawl.git
 cd gym-crawl
 pip3 install -e .
-export CRAWLDIR=<dir where crawl is installed>
+export CRAWLDIR=<crawldir>
 ```
 Note: The program expects to find the DCSS executable at $CRAWLDIR/bin/crawl
 
