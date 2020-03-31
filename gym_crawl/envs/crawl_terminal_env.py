@@ -33,7 +33,7 @@ ACTION_KEYS += LONG_RUNNING_ACTIONS
 #ACTION_KEYS += '\\\'' + CTRL_A + CTRL_E
 
 
-logger = logging.getLogger('crawl-env')
+logger = logging.getLogger('crawl-terminal-env')
 
 def enqueue_output_old(out, queue):
     for line in iter(out.readline, b''):

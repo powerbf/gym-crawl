@@ -9,7 +9,7 @@ Note: I've only run this on Linux, so don't know if it works on other OSes.
 
 # Install DCSS
 
-Note: It is possible to use the terminal (aka console, aka ascii) version of DCSS (either pre-built or built yourself). However, this is deprecated because limited info is available via this interface compared to webtiles.
+Note: It is possible to use the pre-built console version of DCSS. However, this is deprecated because limited info is available via this interface compared to webtiles.
 
 For best results you should build and install the webtiles version (NOTE: This is not the same as the standalone graphical tiles version). 
 
@@ -31,40 +31,46 @@ git checkout stone_soup-0.24
 git submodule update --init
 ```
 
-Pick a directory where you want to install crawl. I will refer to this as &lt;crawldir&gt; from now on. 
-I prefer to use somewhere under my home directory. If &lt;crawldir&gt; is a system folder like /usr/local, you will have to prepend "sudo" to some of these commands.
-
 ### Build:  
+Pick a directory where you want to install crawl. I will refer to this as &lt;crawldir&gt; from now on.  
+I prefer to use somewhere under my home directory. If you use a system folder like /usr/local, you will have to prepend "sudo" to some of these commands.
+
 ```bash
 cd crawl-ref/source
 make install prefix=<crawldir> WEBTILES=y
-cp -r webserver <crawldir>
 ```
 
-### Install webserver files (optional):  
+### Install webserver (optional):  
 ```
-cp -r webserver &lt;crawldir>
-cd <crawldir>
-mkdir rcs
+cp -r webserver <crawldir>/bin
+cp -r util <crawldir>/bin
+mkdir <crawldir>/bin/rcs
+sudo pip2 install tornado==3.0.2
 ```
-Now edit &lt;crawldir&gt;/webserver/config.py and update all instances of:
+
+Run the web server:
+
 ```
-crawl_binary = "./crawl"
+cd <crawldir>/bin
+python ./webserver/server.py
 ```
-to 
-```
-crawl_binary = "./bin/crawl"
-```
+
+In a browser go to [localhost:8080](http://localhost:8080).  
+Register user "Bot" with password "Test".  
+Login as that user and verify that you can start a game.  
 
 # Install gym-crawl
 
 ### Pre-requisites
+Install these apps:  
 * Python 3
-* Pip 3 (Python package installer)
+* Pip 3 (Python 3 package installer)
 
-Several python modules.  
+Install several python modules.  
 * pip3 install setuptools
 * pip3 install wheel
+* pip3 install websockets
+* pip3 install asyncio
 * pip3 install gym
 * pip3 install pynput (needed for the test program only)
 
@@ -73,18 +79,25 @@ Several python modules.
 
 ```bash
 git clone https://github.com/powerbf/gym-crawl.git
+```
+
+### Install
+
+```bash
 cd gym-crawl
 pip3 install -e .
 export CRAWLDIR=<crawldir>
 ```
-Note: The program expects to find the DCSS executable at $CRAWLDIR/bin/crawl
+Note: The program expects to find the DCSS executable under $CRAWLDIR/bin
 
 # Run Tests
 The test program just sends random keystrokes to DCSS. It is not in any way intelligent.
+
 ```bash
 python3 test-env.py -quick
 ```
 (runs quickly, but only performs movement and eating)
+
 ```bash
 python3 test-env.py
 ```

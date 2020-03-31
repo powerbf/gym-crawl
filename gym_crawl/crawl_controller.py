@@ -1,0 +1,386 @@
+'''
+Controller for DCSS
+'''
+
+from abc import ABC, abstractmethod
+from enum import Enum
+import logging
+import os
+import subprocess as subp
+import time
+
+from gym_crawl import crawl_socket
+from gym_crawl.chars import CTRL_Q, ESC
+
+
+# initialize logger
+logger = logging.getLogger('crawl-controller')
+
+    
+class ControllerState(Enum):
+    NotConnected = 0,
+    Connected = 1, # connected, but not logged in
+    LoggedIn = 3,
+    Lobby = 4, # Lobby (logged in)
+    StartingGame = 5,
+    InGame = 6,
+    Quitting = 7
+
+
+class CrawlController(ABC):
+    ''' Controller for Crawl game'''
+    
+    def __init__(self):
+        self.sock = None
+        self.state = ControllerState.NotConnected
+
+    def __del__(self):
+        self.end_game()
+        
+    def start_game(self, username, password):
+        self._connect(username, password)
+        
+        # select species
+        menu = self._wait_for_menu('species-main')
+        if menu is None:
+            if self.state == ControllerState.InGame:
+                # Crawl has loaded a saved game
+                # consume any messages
+                while self.read_messages():
+                    pass
+                # end game
+                self.end_game()
+            raise RuntimeError("Didn't get species menu")
+        self.send_input('b') # Minotaur
+        
+        # select background
+        menu = self._wait_for_menu('background-main')
+        if menu is None:
+            raise RuntimeError("Didn't get background menu")
+        self.send_input('h') # Berserker
+
+        # select weapon
+        menu = self._wait_for_menu('weapon-main')
+        if menu is None:
+            raise RuntimeError("Didn't get weapon menu")
+        self.send_input('c') # Axe
+
+        msg = self._wait_for_message('map')
+        if msg:
+            self.state = ControllerState.InGame
+    
+    def end_game(self):
+        self._quit_game()
+        self._disconnect()
+
+    def send_message(self, msg):
+        self.sock.send_json(msg)
+
+    def read_messages(self):
+        '''Read messages from socket and return as list.
+           If no messages are received, returns an empty list.'''
+        response = self.sock.receive_json()
+        msgs = self._unpack_messages(response)
+        self._handle_messages(msgs)
+        return msgs
+    
+    def _handle_messages(self, msgs):
+        for msg in msgs:
+            if msg['msg'] == 'ping':
+                # respond to ping
+                self.send_message({'msg':'pong'})
+            elif msg['msg'] == 'player':
+                if msg['species'] == 'Yak':
+                    # this is a bogus message
+                    continue
+                if self.state != ControllerState.InGame:
+                    logger.info("Game has started")
+                    self.state = ControllerState.InGame
+            elif msg['msg'] == 'map':
+                if self.state != ControllerState.InGame:
+                    logger.info("Game has started")
+                    self.state = ControllerState.InGame
+    
+    def _unpack_messages(self, response):
+        '''unpack server response into list of messages'''
+        msgs = []
+        if response is not None:
+            if 'msgs' in response:
+                msgs = response['msgs']
+            elif 'msg' in response:
+                msgs.append(response)
+        return msgs
+    
+    def send_input(self, input_str):
+        for c in input_str:
+            self.send_message({'msg':'key', 'keycode':ord(c)})
+            
+    def send_control_input(self, c):
+        code = None
+        if c >= 'a' and c <= 'z':
+            code = ord(c) - ord('a') + 1
+        else:
+            code = ord(c) - ord('A') + 1
+        self.send_message({'msg':'key', 'keycode':code})
+
+    def send_and_receive(self, input_str):
+        self.send_input(input_str)
+        msg = self.read_messages()
+        return msg
+
+    def _quit_game(self):
+        if self.state == ControllerState.InGame:
+            self.state = ControllerState.Quitting
+            logger.info('Quitting game...')
+            self.send_input(CTRL_Q)
+            
+            # confirm if prompted
+            msg = self._wait_for_message('msgs')
+            if msg is not None and 'messages' in msg:
+                for message in msg['messages']:
+                    if 'Confirm with "yes"' in message['text']:
+                        self.send_input('yes\r')
+
+            # dismiss more prompt
+            self._wait_for_message('msgs')
+            self.send_input(ESC)
+
+            # dismiss inventory menu
+            self._wait_for_message('menu')
+            self.send_input(ESC)
+            
+            # dismiss goodbye message
+            self._wait_for_message('ui-push')
+            self.send_input(ESC)
+
+            # wait for lobby to load
+            msg = self._wait_for_message('lobby_complete')
+            if msg:
+                self.state = ControllerState.Lobby
+            else:
+                self.state = ControllerState.NotConnected
+
+    @abstractmethod
+    def _connect(self, username, password):
+        pass
+
+    @abstractmethod
+    def _disconnect(self):
+        pass
+    
+    @abstractmethod
+    def is_connected(self):
+        return False
+
+    def _close_socket(self):
+        if self.sock:
+            self.sock.close()
+            self.sock = None
+    
+    def _wait_for_message(self, msg_id):
+        logger.info("Waiting for message: " + msg_id)
+        tries = 0
+        while tries < 10:
+            tries += 1
+            msgs = self.read_messages()
+            for msg in msgs:
+                if msg['msg'] == msg_id:
+                    logger.info("Received message: " + msg_id)
+                    return msg
+        return None
+    
+    def _wait_for_menu(self, menu_id):
+        logger.info("Waiting for menu: " + menu_id)
+        tries = 0
+        while tries < 10:
+            tries += 1
+            msgs = self.read_messages()
+            for msg in msgs:
+                if msg['msg'] == 'ui-push' and 'main-items' in msg:
+                    main_items = msg['main-items']
+                    if 'menu_id' in main_items and main_items['menu_id'] == menu_id:
+                        # found it
+                        logger.info("Received menu: " + menu_id)
+                        return msg
+        return None
+
+    
+class CrawlUnixSocketController(CrawlController):
+    
+    def __init__(self):
+        self.crawl_process = None
+    
+    def _connect(self, username, password = None):
+        self._start_crawl(username)
+        self._open_socket()
+    
+    def _disconnect(self):       
+        # give crawl a chance to exit gracefully before we kill it
+        waited = 0.0
+        while self._is_crawl_running() and waited < 5.0:
+            time.sleep(0.1)
+            waited += 0.1
+
+        self._stop_crawl()       
+        self._close_socket()
+        
+    def is_connected(self):
+        # check crawl process is running
+        if self.crawl_process and self.crawl_process.poll() is not None:
+            return False
+        
+        svr_sock_path = crawl_socket.UnixSocket.SERVER_SOCKET_PATH
+        # check server socket
+        if os.path.exists(svr_sock_path):
+            # check client socket
+            if self.sock and self.sock.open:
+                return True
+        return False           
+        
+    def _is_crawl_running(self):
+        return (self.crawl_process is not None and self.crawl_process.poll() is None)
+
+    def _get_crawl_exe(self):
+        crawl_path = os.getenv('CRAWLDIR')
+        if crawl_path is None:
+            raise RuntimeError('You must set the CRAWLDIR environment variable with the location of your DCSS installation.')
+        crawl_exe = crawl_path + '/bin/crawl'
+        crawl_exe_alt = crawl_path + '/crawl'
+        if os.path.exists(crawl_exe):
+            return crawl_exe
+        elif os.path.exists(crawl_exe_alt):
+            return crawl_exe_alt
+        else:
+            raise RuntimeError('Neither ' + crawl_exe + ' nor ' + crawl_exe_alt + ' exist. Have you set the CRAWLDIR environment variable correctly?')
+
+    def _get_crawl_bin_dir(self):
+        crawl_path = os.getenv('CRAWLDIR')
+        if crawl_path is None:
+            raise RuntimeError('You must set the CRAWLDIR environment variable with the location of your DCSS installation.')
+        primary = crawl_path + '/bin'
+        secondary = crawl_path
+        if os.path.exists(primary + '/crawl'):
+            return primary
+        elif os.path.exists(secondary + '/crawl'):
+            return secondary
+        else:
+            raise RuntimeError('Could not find crawl executable in ' + primary + ' or ' + secondary + '. Have you set the CRAWLDIR environment variable correctly?')
+
+    def _start_crawl(self, username):
+        svr_sock_path = crawl_socket.UnixSocket.SERVER_SOCKET_PATH
+        
+        if os.path.exists(svr_sock_path):
+            return
+        
+        bin_dir = self._get_crawl_bin_dir()
+        rcfile = './rcs/' + username + '.rc'
+        
+        cmd = ['./crawl', '-dir', '.', '-rc', rcfile, '-name', username, '-webtiles-socket', svr_sock_path, '-await-connection']
+        logger.info("Starting: " + str(cmd))
+        with open("/dev/null", "w") as out:
+        #with open("./crawl.out", "w") as out:
+            with open('./crawl.err', 'w') as err:
+                self.crawl_process = subp.Popen(cmd, cwd = bin_dir, stdout = out, stderr = err, close_fds=True)
+        
+        # wait for crawl to start
+        waited = 0.0
+        while not os.path.exists(svr_sock_path) and waited < 5.0:
+            time.sleep(0.1)
+            waited += 0.1
+
+    def _stop_crawl(self):
+        if self._is_crawl_running():
+            logger.info('Killing crawl process')
+            self.crawl_process.kill() # die horribly
+            
+            # wait for it to die
+            waited = 0.0
+            while self._is_crawl_running() and waited < 5.0:
+                time.sleep(0.1)
+                waited += 0.1
+            
+            if self._is_crawl_running():
+                logger.error("Crawl won't die")
+            else:
+                logger.info('Crawl process has ended')
+        
+        # if crawl doesn't exit cleanly it may not clean up its socket properly
+        if not self._is_crawl_running():
+            svr_sock_path = crawl_socket.UnixSocket.SERVER_SOCKET_PATH
+            if os.path.exists(svr_sock_path):
+                os.remove(svr_sock_path)
+        
+        self.crawl_process = None
+        
+    def _open_socket(self):
+        self.sock = crawl_socket.UnixSocket()
+        self.sock.open()
+        if self.is_connected():
+            self.state = ControllerState.Connected
+        
+        msg = {
+            "msg": "attach",
+            "primary": True
+        }
+
+        self.send_message(msg)
+        msgs = self.read_messages()
+        self.state = ControllerState.LoggedIn
+
+        
+class CrawlWebSocketController(CrawlController):
+    
+    def __init__(self, server_uri):
+        self.server_uri = server_uri
+    
+    def _connect(self, username, password):
+        self._open_web_socket()
+        self._login(username, password)
+        self._choose_game()
+    
+    def _disconnect(self):
+        self._close_socket()
+
+    def is_connected(self):
+        return (self.sock and self.sock.open)
+        
+    def _open_web_socket(self):
+        self.sock = crawl_socket.WebSocket(self.server_uri)
+        self.sock.open()
+        if self.is_connected():
+            self.state = ControllerState.Connected
+    
+    def _login(self, username, password):
+        self._wait_for_message('lobby_complete')
+        
+        login_msg = {
+            'msg':'login',
+            'username':username,
+            'password':password
+        }
+        self.send_message(login_msg)
+        
+        got_game_links = False
+        tries = 0
+        while tries < 5 and not got_game_links:
+            tries += 1
+            msgs = self.read_messages()
+            for msg in msgs:
+                if msg['msg'] == 'login_fail':
+                    raise RuntimeError('Login failed')
+                elif msg['msg'] == 'login_success':
+                    if self.state == ControllerState.Connected:
+                        self.state = ControllerState.LoggedIn
+                elif msg['msg'] == 'set_game_links':
+                    self.state = ControllerState.Lobby
+                    got_game_links = True
+                
+        if not got_game_links:
+            logger.critical("Didn't receive game links")
+            raise RuntimeError("Didn't receive game links")
+    
+    def _choose_game(self):
+        if self.state == ControllerState.Lobby:
+            self.state = ControllerState.StartingGame
+            choose_game_msg = {'msg':'play', 'game_id':'dcss-web-trunk'}
+            self.send_message(choose_game_msg)
