@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import logging
 import os
+from queue import Queue, Empty
 import subprocess as subp
 import time
 
@@ -32,21 +33,22 @@ class CrawlController(ABC):
     
     def __init__(self):
         self.sock = None
+        self.queue = None
         self.state = ControllerState.NotConnected
 
     def __del__(self):
         self.end_game()
-        
+
     def start_game(self, username, password):
         self._connect(username, password)
         
         # select species
-        menu = self._wait_for_menu('species-main')
+        menu = self._wait_for_menu('species-main', 3.0)
         if menu is None:
             if self.state == ControllerState.InGame:
                 # Crawl has loaded a saved game
                 # consume any messages
-                while self.read_messages():
+                while self.read_message():
                     pass
                 # end game
                 self.end_game()
@@ -73,33 +75,48 @@ class CrawlController(ABC):
         self._quit_game()
         self._disconnect()
 
+    def _enqueue_messages(self, timeout=0.5):
+        response = self.sock.receive_json(timeout)
+        msgs = self._unpack_messages(response)
+        for msg in msgs:
+            self.queue.put(msg)
+    
     def send_message(self, msg):
         self.sock.send_json(msg)
 
-    def read_messages(self):
-        '''Read messages from socket and return as list.
-           If no messages are received, returns an empty list.'''
-        response = self.sock.receive_json()
-        msgs = self._unpack_messages(response)
-        self._handle_messages(msgs)
-        return msgs
+    def read_message(self, timeout=0.5):
+        '''Read and return message from Crawl.
+           If no messages are received, returns None'''
+        if self.queue is None:
+            self.queue = Queue()
+            
+        if self.queue.empty():
+            # Ideally, this would be running in a separate thread, but I
+            # haven't been able to make it work with the asyncio stuff
+            self._enqueue_messages(timeout)
+        
+        try:
+            msg = self.queue.get(block=False)
+            self._handle_message(msg)
+            return msg
+        except Empty:
+            return None
     
-    def _handle_messages(self, msgs):
-        for msg in msgs:
-            if msg['msg'] == 'ping':
-                # respond to ping
-                self.send_message({'msg':'pong'})
-            elif msg['msg'] == 'player':
-                if msg['species'] == 'Yak':
-                    # this is a bogus message
-                    continue
-                if self.state != ControllerState.InGame:
-                    logger.info("Game has started")
-                    self.state = ControllerState.InGame
-            elif msg['msg'] == 'map':
-                if self.state != ControllerState.InGame:
-                    logger.info("Game has started")
-                    self.state = ControllerState.InGame
+    def _handle_message(self, msg):
+        if msg['msg'] == 'ping':
+            # respond to ping
+            self.send_message({'msg':'pong'})
+        elif msg['msg'] == 'player':
+            if 'species' in msg and msg['species'] == 'Yak':
+                # this is a bogus message
+                return
+            if self.state != ControllerState.InGame:
+                logger.info("Game has started")
+                self.state = ControllerState.InGame
+        elif msg['msg'] == 'map':
+            if self.state != ControllerState.InGame:
+                logger.info("Game has started")
+                self.state = ControllerState.InGame
     
     def _unpack_messages(self, response):
         '''unpack server response into list of messages'''
@@ -125,7 +142,7 @@ class CrawlController(ABC):
 
     def send_and_receive(self, input_str):
         self.send_input(input_str)
-        msg = self.read_messages()
+        msg = self.read_message()
         return msg
 
     def _quit_game(self):
@@ -177,37 +194,38 @@ class CrawlController(ABC):
             self.sock.close()
             self.sock = None
     
-    def _wait_for_message(self, msg_id):
+    def _wait_for_message(self, msg_id, timeout=0.5):
         logger.info("Waiting for message: " + msg_id)
-        tries = 0
-        while tries < 10:
-            tries += 1
-            msgs = self.read_messages()
-            for msg in msgs:
-                if msg['msg'] == msg_id:
-                    logger.info("Received message: " + msg_id)
-                    return msg
+        start = time.time()
+        elapsed = 0.0
+        while elapsed < timeout:
+            msg = self.read_message(timeout-elapsed)
+            if msg and msg['msg'] == msg_id:
+                logger.info("Received message: " + msg_id)
+                return msg
+            elapsed = time.time() - start
         return None
     
-    def _wait_for_menu(self, menu_id):
+    def _wait_for_menu(self, menu_id, timeout=0.5):
         logger.info("Waiting for menu: " + menu_id)
-        tries = 0
-        while tries < 10:
-            tries += 1
-            msgs = self.read_messages()
-            for msg in msgs:
-                if msg['msg'] == 'ui-push' and 'main-items' in msg:
-                    main_items = msg['main-items']
-                    if 'menu_id' in main_items and main_items['menu_id'] == menu_id:
-                        # found it
-                        logger.info("Received menu: " + menu_id)
-                        return msg
+        start = time.time()
+        elapsed = 0.0
+        while elapsed < timeout:
+            msg = self.read_message(timeout)
+            if msg and msg['msg'] == 'ui-push' and 'main-items' in msg:
+                main_items = msg['main-items']
+                if 'menu_id' in main_items and main_items['menu_id'] == menu_id:
+                    # found it
+                    logger.info("Received menu: " + menu_id)
+                    return msg
+            elapsed = time.time() - start
         return None
 
     
 class CrawlUnixSocketController(CrawlController):
     
     def __init__(self):
+        CrawlController.__init__(self)
         self.crawl_process = None
     
     def _connect(self, username, password = None):
@@ -324,13 +342,13 @@ class CrawlUnixSocketController(CrawlController):
         }
 
         self.send_message(msg)
-        msgs = self.read_messages()
         self.state = ControllerState.LoggedIn
 
         
 class CrawlWebSocketController(CrawlController):
     
     def __init__(self, server_uri):
+        CrawlController.__init__(self)
         self.server_uri = server_uri
     
     def _connect(self, username, password):
@@ -364,16 +382,15 @@ class CrawlWebSocketController(CrawlController):
         tries = 0
         while tries < 5 and not got_game_links:
             tries += 1
-            msgs = self.read_messages()
-            for msg in msgs:
-                if msg['msg'] == 'login_fail':
-                    raise RuntimeError('Login failed')
-                elif msg['msg'] == 'login_success':
-                    if self.state == ControllerState.Connected:
-                        self.state = ControllerState.LoggedIn
-                elif msg['msg'] == 'set_game_links':
-                    self.state = ControllerState.Lobby
-                    got_game_links = True
+            msg = self.read_message()
+            if msg['msg'] == 'login_fail':
+                raise RuntimeError('Login failed')
+            elif msg['msg'] == 'login_success':
+                if self.state == ControllerState.Connected:
+                    self.state = ControllerState.LoggedIn
+            elif msg['msg'] == 'set_game_links':
+                self.state = ControllerState.Lobby
+                got_game_links = True
                 
         if not got_game_links:
             logger.critical("Didn't receive game links")

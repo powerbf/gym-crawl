@@ -82,9 +82,9 @@ class Socket(ABC):
         json_msg = json.dumps(msg).replace("</", "<\\/")
         self.send(json_msg)
 
-    def receive_json(self):
+    def receive_json(self, timeout=0.5):
         '''Receive and decode json message'''
-        json_msg = self.receive()
+        json_msg = self.receive(timeout)
         if json_msg is None or json_msg == '':
             return None
         prefix = ''
@@ -216,9 +216,9 @@ class WebSocket(Socket):
         data = await self.sock.recv()
         return data
 
-    def receive(self):
+    def receive(self, timeout=0.5):
         logger.debug('Receive started')
-        data = run_async(self._receive_impl())
+        data = run_async(self._receive_impl(), timeout)
         
         msg = None
         if data is None or data == '':
