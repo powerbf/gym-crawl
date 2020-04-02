@@ -12,6 +12,9 @@ import time
 
 from gym_crawl import crawl_socket
 from gym_crawl.chars import CTRL_Q, ESC
+from gym_crawl.gamestate import *
+from gym_crawl.map import Color, Cell, Map
+import gym_crawl.message_parser as parser
 from gym_crawl.util import *
 
 
@@ -36,6 +39,7 @@ class CrawlController(ABC):
         self.sock = None
         self.queue = None
         self.state = ControllerState.NotConnected
+        self.game_state = GameState()
 
     def __del__(self):
         self.end_game()
@@ -119,10 +123,12 @@ class CrawlController(ABC):
             if self.state != ControllerState.InGame:
                 logger.info("Game has started")
                 self.state = ControllerState.InGame
+            parser.update_game_state(msg, self.game_state)
         elif msg_id == 'map':
             if self.state != ControllerState.InGame:
                 logger.info("Game has started")
                 self.state = ControllerState.InGame
+            parser.update_game_state(msg, self.game_state)
     
     def _unpack_messages(self, response):
         '''unpack server response into list of messages'''

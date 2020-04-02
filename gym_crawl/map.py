@@ -34,25 +34,57 @@ class Cell:
         self.glyph = None
         self.fg_color = Color.LIGHT_GRAY
         self.bg_color = Color.BLACK
+        self.dungeon_feature = None
+        self.map_feature = None
+        self.tile = None
         
 
 class Map:
     
     def __init__(self):
         # array of cells, indexed by x, y
-        self.cells = None
+        self.cells = {}
         self.player_pos = None
 
     def to_string(self):
         """ return map contents as string """
-        lines = {}
-        for x, column in sorted(self.cells.items()):
-            for y, cell in sorted(column.items()):
-                if not y in lines:
-                    lines[y] = ''
-                lines[y] += cell.glyph
+        
+        xmin = min(self.cells.keys())
+        xmax = max(self.cells.keys())
+        
+        ymin = 0
+        ymax = 0
+        for x, column in self.cells.items():
+            ymin = min([ymin, min(column.keys())])
+            ymax = max([ymax, max(column.keys())])
         
         string = ''
-        for y, line in sorted(lines.items()):
-            string += line + '\n'
+        for y in range(ymin, ymax+1):
+            if string != '':
+                string += '\n'
+            for x in range(xmin, xmax+1):
+                glyph = ' '
+                if x in self.cells:
+                    column = self.cells[x]
+                    if y in column:
+                        cell = column[y]
+                        if cell and cell.glyph:
+                            glyph = cell.glyph
+                string += glyph
+
         return string
+
+    def clear(self):
+        self.cells = {}
+    
+    def set_cell(self, x, y, cell):
+        if not x in self.cells:
+            self.cells[x] = {}
+        self.cells[x][y] = cell
+    
+    def get_cell(self, x, y):
+        if x in self.cells and y in self.cells[x]:
+            return self.cells[x][y]
+        else:
+            return None
+    
