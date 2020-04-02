@@ -203,7 +203,7 @@ class WebSocket(Socket):
     
     def close(self):
         if self.sock:
-            self.sock.close()
+            run_async(self.sock.close())
             self.sock = None
 
     async def _send_impl(self, msg):

@@ -79,8 +79,6 @@ try:
             
             if steps >= 10:
                 done = True
-
-except:
+finally:
     if env:
         env.close()
-    raise
