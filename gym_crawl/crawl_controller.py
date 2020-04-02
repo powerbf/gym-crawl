@@ -12,6 +12,7 @@ import time
 
 from gym_crawl import crawl_socket
 from gym_crawl.chars import CTRL_Q, ESC
+from gym_crawl.util import *
 
 
 # initialize logger
@@ -103,17 +104,22 @@ class CrawlController(ABC):
             return None
     
     def _handle_message(self, msg):
-        if msg['msg'] == 'ping':
+        msg_id = msg['msg']
+        if msg_id == 'ping':
             # respond to ping
             self.send_message({'msg':'pong'})
-        elif msg['msg'] == 'player':
+        elif msg_id == 'login_success':
+            self.state = ControllerState.LoggedIn
+        elif msg_id == 'login_failed':
+            self.state = ControllerState.NotLoggedIn
+        elif msg_id == 'player':
             if 'species' in msg and msg['species'] == 'Yak':
                 # this is a bogus message
                 return
             if self.state != ControllerState.InGame:
                 logger.info("Game has started")
                 self.state = ControllerState.InGame
-        elif msg['msg'] == 'map':
+        elif msg_id == 'map':
             if self.state != ControllerState.InGame:
                 logger.info("Game has started")
                 self.state = ControllerState.InGame
@@ -194,29 +200,31 @@ class CrawlController(ABC):
             self.sock.close()
             self.sock = None
     
-    def _wait_for_message(self, msg_id, timeout=0.5):
-        logger.info("Waiting for message: " + msg_id)
+    def _wait_for_message(self, msg_ids, timeout=0.5):
+        msg_ids = make_list(msg_ids)
+        logger.info("Waiting for message: " + str(msg_ids))
         start = time.time()
         elapsed = 0.0
         while elapsed < timeout:
             msg = self.read_message(timeout-elapsed)
-            if msg and msg['msg'] == msg_id:
-                logger.info("Received message: " + msg_id)
+            if msg and msg['msg'] in msg_ids:
+                logger.info("Received message: " + msg['msg'])
                 return msg
             elapsed = time.time() - start
         return None
     
-    def _wait_for_menu(self, menu_id, timeout=0.5):
-        logger.info("Waiting for menu: " + menu_id)
+    def _wait_for_menu(self, menu_ids, timeout=0.5):
+        menu_ids = make_list(menu_ids)
+        logger.info("Waiting for menu: " + str(menu_ids))
         start = time.time()
         elapsed = 0.0
         while elapsed < timeout:
             msg = self.read_message(timeout)
             if msg and msg['msg'] == 'ui-push' and 'main-items' in msg:
                 main_items = msg['main-items']
-                if 'menu_id' in main_items and main_items['menu_id'] == menu_id:
+                if 'menu_id' in main_items and main_items['menu_id'] in menu_ids:
                     # found it
-                    logger.info("Received menu: " + menu_id)
+                    logger.info("Received menu: " + main_items['menu_id'])
                     return msg
             elapsed = time.time() - start
         return None
@@ -378,23 +386,16 @@ class CrawlWebSocketController(CrawlController):
         }
         self.send_message(login_msg)
         
-        got_game_links = False
-        tries = 0
-        while tries < 5 and not got_game_links:
-            tries += 1
-            msg = self.read_message()
-            if msg['msg'] == 'login_fail':
-                raise RuntimeError('Login failed')
-            elif msg['msg'] == 'login_success':
-                if self.state == ControllerState.Connected:
-                    self.state = ControllerState.LoggedIn
-            elif msg['msg'] == 'set_game_links':
-                self.state = ControllerState.Lobby
-                got_game_links = True
-                
-        if not got_game_links:
+        msg = self._wait_for_message(['login_success', 'login_fail'])
+        if msg is None or msg['msg'] == 'login_fail':
+            logger.critical("Login failed")
+            raise RuntimeError("Login failed")
+        
+        msg = self._wait_for_message('set_game_links')
+        if not msg:   
             logger.critical("Didn't receive game links")
             raise RuntimeError("Didn't receive game links")
+        self.state = ControllerState.Lobby   
     
     def _choose_game(self):
         if self.state == ControllerState.Lobby:
