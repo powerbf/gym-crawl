@@ -36,33 +36,33 @@ class CharAttribute(Enum):
 
 # map features (from map-feature.h)
 class MapFeature(Enum):
-    MF_UNSEEN = 0
-    MF_FLOOR = 1
-    MF_WALL = 2
-    MF_MAP_FLOOR = 3
-    MF_MAP_WALL = 4
-    MF_DOOR = 5
-    MF_ITEM = 6
-    MF_MONS_FRIENDLY = 7
-    MF_MONS_PEACEFUL = 8
-    MF_MONS_NEUTRAL = 9
-    MF_MONS_HOSTILE = 10
-    MF_MONS_NO_EXP = 11
-    MF_STAIR_UP = 12
-    MF_STAIR_DOWN = 13
-    MF_STAIR_BRANCH = 14
-    MF_FEATURE = 15
-    MF_WATER = 16
-    MF_LAVA = 17
-    MF_TRAP = 18
-    MF_EXCL_ROOT = 19
-    MF_EXCL = 20
-    MF_PLAYER = 21
-    MF_DEEP_WATER = 22
-    MF_PORTAL = 23
-    MF_TRANSPORTER = 24
-    MF_TRANSPORTER_LANDING = 25
-    MF_EXPLORE_HORIZON = 26
+    UNSEEN = 0
+    FLOOR = 1
+    WALL = 2
+    MAP_FLOOR = 3
+    MAP_WALL = 4
+    DOOR = 5
+    ITEM = 6
+    MONS_FRIENDLY = 7
+    MONS_PEACEFUL = 8
+    MONS_NEUTRAL = 9
+    MONS_HOSTILE = 10
+    MONS_NO_EXP = 11
+    STAIR_UP = 12
+    STAIR_DOWN = 13
+    STAIR_BRANCH = 14
+    FEATURE = 15
+    WATER = 16
+    LAVA = 17
+    TRAP = 18
+    EXCL_ROOT = 19
+    EXCL = 20
+    PLAYER = 21
+    DEEP_WATER = 22
+    PORTAL = 23
+    TRANSPORTER = 24
+    TRANSPORTER_LANDING = 25
+    EXPLORE_HORIZON = 26
 
 
 # Dungeon characters (glyphs)

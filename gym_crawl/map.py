@@ -3,7 +3,8 @@ DCSS Map
 '''
 
 import logging
-from .crawl_defs import CharAttribute, Color, MapFeature
+from .crawl_defs import *
+
 
 logger = logging.getLogger('map')
 
@@ -19,6 +20,44 @@ class Cell:
         self.dungeon_feature = None
         self.map_feature = None
         self.tile = None
+
+    FEATURE_CHARS = {
+        MapFeature.UNSEEN : '?',
+        MapFeature.FLOOR : '.',
+        MapFeature.WALL : '#',
+        MapFeature.MAP_FLOOR : '.',
+        MapFeature.MAP_WALL : '#',
+        MapFeature.DOOR : '+',
+        MapFeature.ITEM : '%',
+        MapFeature.MONS_FRIENDLY : 'f',
+        MapFeature.MONS_PEACEFUL : 'p',
+        MapFeature.MONS_NEUTRAL : 'n',
+        MapFeature.MONS_HOSTILE : 'h',
+        MapFeature.MONS_NO_EXP : 'x',
+        MapFeature.STAIR_UP : '<',
+        MapFeature.STAIR_DOWN : '>',
+        MapFeature.STAIR_BRANCH : '^',
+        MapFeature.FEATURE : DCHAR_FOUNTAIN,
+        MapFeature.WATER : '~',
+        MapFeature.LAVA : 'L',
+        MapFeature.TRAP : 'T',
+        MapFeature.EXCL_ROOT : '0',
+        MapFeature.EXCL : 'X',
+        MapFeature.PLAYER : '@',
+        MapFeature.DEEP_WATER : 'W',
+        MapFeature.PORTAL : 'P',
+        MapFeature.TRANSPORTER : 'O',
+        MapFeature.TRANSPORTER_LANDING : 'o',
+        MapFeature.EXPLORE_HORIZON : '\xa4' # ¤
+    }
+    
+    def get_map_feature_as_glyph(self):
+        if self.map_feature == None:
+            return ' '
+        elif self.map_feature in Cell.FEATURE_CHARS:
+            return Cell.FEATURE_CHARS[self.map_feature]
+        else:
+            return '\xb7f' # ¿
         
 
 class Map:
@@ -28,7 +67,21 @@ class Map:
         self.cells = {}
         self.player_pos = None
 
-    def to_string(self):
+    def clear(self):
+        self.cells = {}
+    
+    def set_cell(self, x, y, cell):
+        if not x in self.cells:
+            self.cells[x] = {}
+        self.cells[x][y] = cell
+    
+    def get_cell(self, x, y):
+        if x in self.cells and y in self.cells[x]:
+            return self.cells[x][y]
+        else:
+            return None
+
+    def to_string(self, use_map_feature=False):
         """ return map contents as string """
         
         xmin = min(self.cells.keys())
@@ -46,31 +99,17 @@ class Map:
                 string += '\n'
             for x in range(xmin, xmax+1):
                 glyph = ' '
-                if x in self.cells:
-                    column = self.cells[x]
-                    if y in column:
-                        cell = column[y]
-                        if cell and cell.glyph:
+                cell = self.get_cell(x, y)
+                if cell:
+                    if use_map_feature:
+                        glyph = cell.get_map_feature_as_glyph()
+                    else:
+                        if cell.glyph:
                             glyph = cell.glyph
-                        elif cell and cell.map_feature: 
-                            if cell.map_feature == MapFeature.MF_EXPLORE_HORIZON:
+                        elif cell.map_feature: 
+                            if cell.map_feature == MapFeature.EXPLORE_HORIZON:
                                 glyph = '\xa4' # ¤
                                 #glyph = '\xb7f' # ¿
                 string += glyph
 
         return string
-
-    def clear(self):
-        self.cells = {}
-    
-    def set_cell(self, x, y, cell):
-        if not x in self.cells:
-            self.cells[x] = {}
-        self.cells[x][y] = cell
-    
-    def get_cell(self, x, y):
-        if x in self.cells and y in self.cells[x]:
-            return self.cells[x][y]
-        else:
-            return None
-    
