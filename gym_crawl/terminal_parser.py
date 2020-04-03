@@ -5,7 +5,8 @@ import logging
 import re
 
 import gym_crawl.terminal as term
-from gym_crawl.map import Color, Cell, Map
+from gym_crawl.map import Cell, Map
+from gym_crawl.crawl_defs import Color
 
 logger = logging.getLogger('term-parser')
 

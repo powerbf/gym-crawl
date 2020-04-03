@@ -13,7 +13,6 @@ import time
 from gym_crawl import crawl_socket
 from gym_crawl.chars import CTRL_Q, ESC
 from gym_crawl.gamestate import *
-from gym_crawl.map import Color, Cell, Map
 import gym_crawl.message_parser as parser
 from gym_crawl.util import *
 

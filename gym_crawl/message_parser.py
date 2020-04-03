@@ -5,8 +5,9 @@ Parse message from websocket version of Crawl
 import logging
 
 from gym_crawl.crawl_defs import *
-from gym_crawl.map import Color, Cell, Map
 from gym_crawl.gamestate import *
+from gym_crawl.map import Cell, Map
+
 
 
 logger = logging.getLogger('msg-parser')
@@ -53,7 +54,8 @@ def update_cell(src, dest):
     if 'g' in src:
         dest.glyph = src['g']
     if 'col' in src:
-        dest.fg_color = src['col']
+        dest.fg_color = Color(src['col'] & 0xf)
+        dest.char_attr = CharAttribute((src['col'] >> 4) & 0xf)
     if 't' in src:
         dest.tile = src['t']
     
