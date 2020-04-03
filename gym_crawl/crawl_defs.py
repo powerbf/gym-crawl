@@ -1,7 +1,40 @@
 '''
 Some info about crawl
 '''
+from enum import Enum
 
+# map features (from map-feature.h)
+class MapFeature(Enum):
+    MF_UNSEEN = 0
+    MF_FLOOR = 1
+    MF_WALL = 2
+    MF_MAP_FLOOR = 3
+    MF_MAP_WALL = 4
+    MF_DOOR = 5
+    MF_ITEM = 6
+    MF_MONS_FRIENDLY = 7
+    MF_MONS_PEACEFUL = 8
+    MF_MONS_NEUTRAL = 9
+    MF_MONS_HOSTILE = 10
+    MF_MONS_NO_EXP = 11
+    MF_STAIR_UP = 12
+    MF_STAIR_DOWN = 13
+    MF_STAIR_BRANCH = 14
+    MF_FEATURE = 15
+    MF_WATER = 16
+    MF_LAVA = 17
+    MF_TRAP = 18
+    MF_EXCL_ROOT = 19
+    MF_EXCL = 20
+    MF_PLAYER = 21
+    MF_DEEP_WATER = 22
+    MF_PORTAL = 23
+    MF_TRANSPORTER = 24
+    MF_TRANSPORTER_LANDING = 25
+    MF_EXPLORE_HORIZON = 26
+
+
+# Dungeon characters (glyphs)
 DCHAR_WALL = '#'
 DCHAR_PERMAWALL = '\x2593'  # ▓
 DCHAR_WALL_MAGIC = '*'

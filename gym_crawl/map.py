@@ -3,6 +3,7 @@ DCSS Map
 '''
 from enum import Enum
 import logging
+from .crawl_defs import MapFeature
 
 logger = logging.getLogger('map')
 
@@ -70,6 +71,10 @@ class Map:
                         cell = column[y]
                         if cell and cell.glyph:
                             glyph = cell.glyph
+                        elif cell and cell.map_feature: 
+                            if cell.map_feature == MapFeature.MF_EXPLORE_HORIZON:
+                                glyph = '\xa4' # ¤
+                                #glyph = '\xb7f' # ¿
                 string += glyph
 
         return string

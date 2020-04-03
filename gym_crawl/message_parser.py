@@ -4,8 +4,10 @@ Parse message from websocket version of Crawl
 
 import logging
 
+from gym_crawl.crawl_defs import *
 from gym_crawl.map import Color, Cell, Map
 from gym_crawl.gamestate import *
+
 
 logger = logging.getLogger('msg-parser')
 
@@ -47,7 +49,7 @@ def update_cell(src, dest):
     if 'f' in src:
         dest.dungeon_feature = src['f']
     if 'mf' in src:
-        dest.map_feature = src['mf']    
+        dest.map_feature = MapFeature(src['mf'])
     if 'g' in src:
         dest.glyph = src['g']
     if 'col' in src:
